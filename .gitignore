@@ -11,3 +11,5 @@ dados-reais/
 *.pdf
 !backend/test/fixtures/*.csv
 !backend/test/fixtures/*.ofx
+!.env.example
+!backend/.env.example

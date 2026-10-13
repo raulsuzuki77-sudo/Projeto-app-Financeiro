@@ -68,4 +68,6 @@ export interface NovoLancamento {
   /** Identificador único na origem (wamid, FITID, hash de linha): garante idempotência. */
   referencia: string;
   texto_bruto?: string;
+  /** Quando preenchido, o lançamento nasce pendente com este motivo, mesmo se a classificação for confiável. */
+  alerta_revisao?: string;
 }

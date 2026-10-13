@@ -11,6 +11,10 @@ export interface ItemImportado {
   referencia?: string;
   parcela_atual?: number | null;
   parcela_total?: number | null;
+  /** Confiança do OCR na linha (0-100), quando a origem é imagem. */
+  confianca_ocr?: number;
+  /** Motivo pelo qual o item exige revisão humana (ex.: data fora de ordem). */
+  alerta?: string;
 }
 
 export interface ContextoImportacao {
@@ -22,6 +26,8 @@ export interface ContextoImportacao {
   conta_id?: number | null;
   /** Em fatura de cartão, valores positivos são compras (despesa). */
   positivoEhDespesa?: boolean;
+  /** Força todos os itens do lote como pendentes (ex.: soma não fecha com o total da fatura). */
+  forcarRevisao?: string;
 }
 
 const RE_PGTO_FATURA = /pagamento de fatura|pagamento fatura|pgto fatura|pagto fatura|pagamento recebido|pag fatura/i;
@@ -36,10 +42,12 @@ export interface RelatorioImportacao {
   mesclados: number;
   ja_processados: number;
   pendentes: number;
+  /** Itens que exigiram revisão por alerta de leitura (não por falta de classificação). */
+  alertas: { descricao: string; data_local: string; motivo: string }[];
 }
 
 export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImportacao): RelatorioImportacao {
-  const rel: RelatorioImportacao = { lidos: itens.length, criados: 0, mesclados: 0, ja_processados: 0, pendentes: 0 };
+  const rel: RelatorioImportacao = { lidos: itens.length, criados: 0, mesclados: 0, ja_processados: 0, pendentes: 0, alertas: [] };
   const contador = new Map<string, number>();
   for (const it of itens) {
     const ehSaida = ctx.positivoEhDespesa ? it.valor_centavos > 0 : it.valor_centavos < 0;
@@ -52,6 +60,7 @@ export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImpor
     const ordinal = (contador.get(chave) ?? 0) + 1;
     contador.set(chave, ordinal);
     const referencia = it.referencia ? it.referencia : `${chave}#${ordinal}`;
+    const alertaItem = it.alerta ?? ctx.forcarRevisao;
     const r = registrarLancamento(db, {
       usuario_id: ctx.usuario_id,
       tipo,
@@ -68,7 +77,9 @@ export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImpor
       origem: ctx.origem,
       referencia,
       texto_bruto: it.descricao,
+      alerta_revisao: alertaItem,
     });
+    if (alertaItem && r.resultado === "criado") rel.alertas.push({ descricao: it.descricao, data_local: it.data_local, motivo: alertaItem });
     if (r.resultado === "criado") {
       rel.criados++;
       if (r.lancamento.status === "pendente") rel.pendentes++;

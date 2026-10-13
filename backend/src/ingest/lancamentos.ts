@@ -84,7 +84,7 @@ export function registrarLancamento(db: Db, n: NovoLancamento): ResultadoRegistr
 
     const cls = classificar(db, n.usuario_id, n.descricao, n.tipo);
     const natureza: Natureza = n.parcela_total && n.parcela_total > 1 && cls.natureza === "eventual" ? "parcelado" : cls.natureza;
-    const status: Status = cls.confianca >= LIMIAR_CONFIANCA && candidatos.length === 0 ? "confirmado" : "pendente";
+    const status: Status = cls.confianca >= LIMIAR_CONFIANCA && candidatos.length === 0 && !n.alerta_revisao ? "confirmado" : "pendente";
     const info = db
       .prepare(
         `INSERT INTO lancamento (usuario_id, tipo, valor_centavos, descricao, estabelecimento_norm, categoria, natureza,
