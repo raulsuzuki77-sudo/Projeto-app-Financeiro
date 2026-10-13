@@ -42,22 +42,22 @@ test("base64 e utf8: ida e volta, incluindo tamanhos nao multiplos de 3 e acento
   assert.throws(() => deBase64("!!!"));
 });
 
-test("cifra: ida e volta; senha errada, adulteracao e parametros fora do aceitavel falham", () => {
-  const seg = cifrar("conteudo secreto: R$ 1.234,56", "senha-bem-longa", alea, ITER);
-  assert.equal(decifrar(seg, "senha-bem-longa"), "conteudo secreto: R$ 1.234,56");
-  assert.throws(() => decifrar(seg, "outra-senha-longa"), /senha incorreta ou arquivo corrompido/);
+test("cifra: ida e volta; senha errada, adulteracao e parametros fora do aceitavel falham", async () => {
+  const seg = await cifrar("conteudo secreto: R$ 1.234,56", "senha-bem-longa", alea, ITER);
+  assert.equal(await decifrar(seg, "senha-bem-longa"), "conteudo secreto: R$ 1.234,56");
+  await assert.rejects(decifrar(seg, "outra-senha-longa"), /senha incorreta ou arquivo corrompido/);
   const o = JSON.parse(seg);
   const dados = deBase64(o.dados); dados[0] = dados[0]! ^ 1;
-  assert.throws(() => decifrar(JSON.stringify({ ...o, dados: paraBase64(dados) }), "senha-bem-longa"), /corrompido/);
-  assert.throws(() => decifrar(JSON.stringify({ ...o, iteracoes: 100_001 }), "senha-bem-longa"), /corrompido/); // cabecalho autenticado
-  assert.throws(() => decifrar(JSON.stringify({ ...o, iteracoes: 5 }), "senha-bem-longa"), /fora do aceitavel/);
-  assert.throws(() => decifrar("nao e json", "x"), /invalido/);
-  assert.throws(() => cifrar("x", "curta", alea, ITER), /ao menos/);
-  assert.notEqual(cifrar("igual", "senha-bem-longa", alea, ITER), cifrar("igual", "senha-bem-longa", alea, ITER)); // sal e nonce novos
+  await assert.rejects(decifrar(JSON.stringify({ ...o, dados: paraBase64(dados) }), "senha-bem-longa"), /corrompido/);
+  await assert.rejects(decifrar(JSON.stringify({ ...o, iteracoes: 100_001 }), "senha-bem-longa"), /corrompido/); // cabecalho autenticado
+  await assert.rejects(decifrar(JSON.stringify({ ...o, iteracoes: 5 }), "senha-bem-longa"), /fora do aceitavel/);
+  await assert.rejects(decifrar("nao e json", "x"), /invalido/);
+  await assert.rejects(cifrar("x", "curta", alea, ITER), /ao menos/);
+  assert.notEqual(await cifrar("igual", "senha-bem-longa", alea, ITER), await cifrar("igual", "senha-bem-longa", alea, ITER)); // sal e nonce novos
   assert.ok(!seg.includes("secreto")); // nada em claro
 });
 
-test("backup: exporta, cifra, restaura em banco novo e os totais conferem; restauracao e tudo-ou-nada", () => {
+test("backup: exporta, cifra, restaura em banco novo e os totais conferem; restauracao e tudo-ou-nada", async () => {
   const a = abrirBancoTeste();
   criarCartao(a, U, { apelido: "nomad" });
   processarMensagem(a, { id: "1", usuario_id: U, texto: "assai 100,50 nomad", recebida_em: AGORA });
@@ -65,11 +65,11 @@ test("backup: exporta, cifra, restaura em banco novo e os totais conferem; resta
   processarMensagem(a, { id: "3", usuario_id: U, texto: "categoria lazer_passeios", recebida_em: AGORA }); // regra + auditoria
   criarMeta(a, U, { nome: "Viagem", tipo: "curto_prazo", valor_alvo_centavos: 100000, aporte_inicial_centavos: 0, prazo_meses: 12, perfil: "arrojado" });
   salvarPremissa(a, U, { chave: "moderado", retorno_nominal_aa: 0.11 });
-  const arquivo = cifrar(JSON.stringify(exportarDados(a, AGORA)), "senha-bem-longa", alea, ITER);
+  const arquivo = await cifrar(JSON.stringify(exportarDados(a, AGORA)), "senha-bem-longa", alea, ITER);
 
   const b = abrirBancoTeste();
   criarCartao(b, U, { apelido: "lixo" }); // sera substituido
-  const r = restaurarDados(b, JSON.parse(decifrar(arquivo, "senha-bem-longa")));
+  const r = restaurarDados(b, JSON.parse(await decifrar(arquivo, "senha-bem-longa")));
   assert.ok(r.linhas > 8);
   assert.deepEqual(listarCartoes(b, U).map((c) => c.apelido), ["nomad"]);
   assert.deepEqual(resumoMensal(b, U, "2026-10"), resumoMensal(a, U, "2026-10"));

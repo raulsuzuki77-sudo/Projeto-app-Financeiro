@@ -10,10 +10,6 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.example.controlefinanceiro",
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        },
-        "NSLocalNetworkUsageDescription": "Conectar ao servidor do Controle Financeiro na sua rede local.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -32,7 +28,14 @@
     "scheme": "controlefinanceiro",
     "plugins": [
       "expo-router",
+      "expo-sqlite",
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permitir o Face ID para proteger seus dados financeiros."
+        }
+      ],
       [
         "expo-image-picker",
         {

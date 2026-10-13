@@ -23,3 +23,4 @@ export * from "./cartoes/cartoes";
 export * from "./importers/orquestracao";
 export * from "./backup/dados";
 export * from "./backup/cifra";
+export * from "./adaptadores/expo-sqlite";

@@ -1,152 +1,52 @@
-import * as SecureStore from "expo-secure-store";
+import {
+  alterarLancamento, atualizarMeta, calendarioMensal, capacidadePoupanca, cenariosDaMeta, criarCartao, criarMeta, lerPremissas, listarCartoes,
+  listarLancamentos, listarMetas, mapaCalor, processarMensagem, removerCartao, removerMeta, reservaDeEmergencia, resumoMensal, salvarPremissa,
+  type Cartao, type Lancamento, type Meta, type Natureza, type Premissa, type ResumoMensal, type Status, type CenarioMeta,
+} from "../../../core/src/index";
+import { obterBanco } from "../data/banco";
 
-const CHAVE_URL = "servidor_url";
-const CHAVE_TOKEN = "servidor_token";
+export type { Cartao, Lancamento, Meta, ResumoMensal, CenarioMeta };
+export type PremissaApi = Premissa;
+export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
+export type Reserva = ReturnType<typeof reservaDeEmergencia>;
+export type MapaCalor = ReturnType<typeof mapaCalor>;
 
-export interface Conexao {
-  url: string;
-  token: string;
-}
+/** Aplicativo de um unico usuario: o identificador existe so para manter o schema compativel com o servidor opcional. */
+export const USUARIO = "local";
 
-export async function lerConexao(): Promise<Conexao | null> {
-  const url = await SecureStore.getItemAsync(CHAVE_URL);
-  const token = await SecureStore.getItemAsync(CHAVE_TOKEN);
-  return url && token ? { url, token } : null;
-}
+let seq = 0;
+const novoId = () => `app-${Date.now()}-${++seq}-${Math.random().toString(36).slice(2)}`;
 
-export async function salvarConexao(c: Conexao): Promise<void> {
-  await SecureStore.setItemAsync(CHAVE_URL, c.url);
-  await SecureStore.setItemAsync(CHAVE_TOKEN, c.token);
-}
-
-export async function apagarConexao(): Promise<void> {
-  await SecureStore.deleteItemAsync(CHAVE_URL);
-  await SecureStore.deleteItemAsync(CHAVE_TOKEN);
-}
-
-export class ErroApi extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
-}
-
-async function chamar<T>(caminho: string, init: RequestInit = {}, timeoutMs = 20_000, conexao?: Conexao | null): Promise<T> {
-  const c = conexao ?? (await lerConexao());
-  if (!c) throw new ErroApi("Configure o servidor na aba Ajustes.", 0);
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), timeoutMs);
-  try {
-    const r = await fetch(`${c.url}${caminho}`, { ...init, headers: { ...init.headers, Authorization: `Bearer ${c.token}` }, signal: ctl.signal });
-    const corpo = await r.json().catch(() => ({}));
-    if (!r.ok) throw new ErroApi((corpo as { erro?: string }).erro ?? `Erro ${r.status}`, r.status);
-    return corpo as T;
-  } catch (e) {
-    if (e instanceof ErroApi) throw e;
-    throw new ErroApi("Nao foi possivel falar com o servidor. Verifique o endereco e a rede.", 0);
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-export interface Lancamento {
-  id: number;
-  tipo: string;
-  valor_centavos: number;
-  descricao: string;
-  categoria: string;
-  natureza: string;
-  data_local: string;
-  hora_local: number | null;
-  status: "pendente" | "confirmado" | "cancelado";
-  motivo_revisao: string | null;
-}
-
-export interface ResumoMensal {
-  mes: string;
-  receitas_centavos: number;
-  despesas_centavos: number;
-  investimentos_centavos: number;
-  saldo_centavos: number;
-  taxa_poupanca: number | null;
-  pendentes: number;
-  por_categoria: { categoria: string; total_centavos: number }[];
-  por_natureza: { natureza: string; total_centavos: number }[];
-}
-
-export interface MapaCalor {
-  celulas: { dia_semana: number; hora: number; total_centavos: number; quantidade: number }[];
-  excluidos_sem_horario: number;
-}
-
-export interface Meta {
-  id: number;
-  nome: string;
-  tipo: string;
-  valor_alvo_centavos: number;
-  aporte_inicial_centavos: number;
-  prazo_meses: number;
-  perfil: "conservador" | "moderado" | "arrojado";
-}
-
-export interface CenarioMeta {
-  cenario: "conservador" | "moderado" | "arrojado";
-  retorno_nominal_aa: number;
-  taxa_real_aa: number;
-  aporte_mensal_necessario_centavos: number;
-  total_aportado_centavos: number;
-  ir_estimado_centavos: number;
-  valor_alvo_nominal_centavos: number;
-  atingida_sem_aportes: boolean;
-  perfil_da_meta: boolean;
-  prazo_com_aporte_meses?: number | null;
-}
-
-export interface CenariosDaMeta {
-  meta: Meta;
-  ipca_aa: number;
-  cenarios: CenarioMeta[];
-  premissas_padrao: boolean;
-  aviso: string;
-}
-
-export interface Reserva {
-  media_mensal_centavos: number;
-  meses_cobertura: number;
-  valor_alvo_centavos: number;
-  meses_sem_dados: string[];
-  observacao: string;
-}
-
-export interface PremissaApi {
-  chave: "conservador" | "moderado" | "arrojado" | "ipca";
-  retorno_nominal_aa: number;
-  ir_modo: "regressivo" | "fixa" | "isento";
-  ir_aliquota: number | null;
-  atualizada_em: string | null;
-}
-
+/**
+ * Fachada local: as telas chamam estas funcoes e tudo roda no iPhone (SQLite local + nucleo compartilhado).
+ * Mantida assincrona para que as telas nao dependam de onde a logica roda.
+ */
 export const api = {
-  testar: (c: Conexao) => chamar<{ ok: boolean }>("/health", {}, 8000, c),
-  enviarMensagem: (texto: string) =>
-    chamar<{ resposta: string }>("/api/mensagens", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: `app-${Date.now()}-${Math.random().toString(36).slice(2)}`, texto }) }),
-  lancamentos: (q: { mes?: string; status?: string }) => chamar<Lancamento[]>(`/api/lancamentos?${new URLSearchParams(q as Record<string, string>)}`),
-  alterar: (id: number, dados: { categoria?: string; status?: string }) =>
-    chamar<Lancamento>(`/api/lancamentos/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(dados) }),
-  resumo: (mes: string) => chamar<ResumoMensal>(`/api/dashboard/resumo?mes=${mes}`),
-  mapaCalor: (de: string, ate: string) => chamar<MapaCalor>(`/api/dashboard/mapa-calor?de=${de}&ate=${ate}`),
-  calendario: (mes: string) => chamar<{ data: string; total_centavos: number; quantidade: number }[]>(`/api/dashboard/calendario?mes=${mes}`),
-  premissas: () => chamar<{ premissas: PremissaApi[]; premissas_padrao: boolean }>("/api/premissas"),
-  salvarPremissa: (p: { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null }) =>
-    chamar<{ premissas: PremissaApi[]; premissas_padrao: boolean }>("/api/premissas", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(p) }),
-  metas: () => chamar<Meta[]>("/api/metas"),
-  criarMeta: (m: Omit<Meta, "id">) => chamar<{ id: number }>("/api/metas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(m) }),
-  atualizarMeta: (id: number, m: Partial<Omit<Meta, "id">>) => chamar<Meta>(`/api/metas/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(m) }),
-  removerMeta: (id: number) => chamar<{ ok: boolean }>(`/api/metas/${id}`, { method: "DELETE" }),
-  cenarios: (id: number, aporteCentavos?: number) => chamar<CenariosDaMeta>(`/api/metas/${id}/cenarios${aporteCentavos !== undefined ? `?aporte_mensal_centavos=${aporteCentavos}` : ""}`),
-  reserva: (meses: number) => chamar<Reserva>(`/api/reserva-emergencia?meses=${meses}`),
-  poupanca: () => chamar<{ sobra_media_mensal_centavos: number; observacao: string }>("/api/capacidade-poupanca"),
-  enviarArquivo: async (uri: string, mime: "application/pdf" | "image/png" | "image/jpeg", tipo: "fatura" | "comprovante") => {
-    const blob = await (await fetch(uri)).blob();
-    return chamar<Record<string, unknown>>(`/api/importacoes-arquivo?tipo=${tipo}`, { method: "POST", headers: { "content-type": mime }, body: blob }, 180_000);
+  enviarMensagem: async (texto: string) => ({ resposta: processarMensagem(obterBanco(), { id: novoId(), usuario_id: USUARIO, texto, recebida_em: new Date(), origem: "texto_manual" }) }),
+  lancamentos: async (q: { mes?: string; status?: string }) => listarLancamentos(obterBanco(), USUARIO, q) as Lancamento[],
+  alterar: async (id: number, dados: { categoria?: string; natureza?: Natureza; status?: Status }) => alterarLancamento(obterBanco(), id, USUARIO, dados),
+  resumo: async (mes: string) => resumoMensal(obterBanco(), USUARIO, mes),
+  mapaCalor: async (de: string, ate: string) => mapaCalor(obterBanco(), USUARIO, de, ate),
+  calendario: async (mes: string) => calendarioMensal(obterBanco(), USUARIO, mes),
+
+  cartoes: async () => listarCartoes(obterBanco(), USUARIO),
+  criarCartao: async (c: { apelido: string; ultimos4?: string | null }) => criarCartao(obterBanco(), USUARIO, c),
+  removerCartao: async (id: number) => removerCartao(obterBanco(), USUARIO, id),
+
+  premissas: async () => lerPremissas(obterBanco(), USUARIO),
+  salvarPremissa: async (p: { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null }) => {
+    salvarPremissa(obterBanco(), USUARIO, p);
+    return lerPremissas(obterBanco(), USUARIO);
   },
+  metas: async () => listarMetas(obterBanco(), USUARIO),
+  criarMeta: async (m: Omit<Meta, "id">) => ({ id: criarMeta(obterBanco(), USUARIO, m) }),
+  atualizarMeta: async (id: number, m: Partial<Omit<Meta, "id">>) => atualizarMeta(obterBanco(), USUARIO, id, m),
+  removerMeta: async (id: number) => ({ ok: removerMeta(obterBanco(), USUARIO, id) }),
+  cenarios: async (id: number, aporteCentavos?: number) => {
+    const meta = listarMetas(obterBanco(), USUARIO).find((m) => m.id === id);
+    if (!meta) throw new Error("Meta nao encontrada.");
+    return cenariosDaMeta(obterBanco(), USUARIO, meta, aporteCentavos);
+  },
+  reserva: async (meses: number) => reservaDeEmergencia(obterBanco(), USUARIO, meses),
+  poupanca: async () => capacidadePoupanca(obterBanco(), USUARIO),
 };

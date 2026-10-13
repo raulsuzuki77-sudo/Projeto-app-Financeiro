@@ -27,7 +27,7 @@ export default function Revisar() {
   }, []);
   useFocusEffect(useCallback(() => void carregar(), [carregar]));
 
-  async function agir(id: number, dados: { categoria?: string; status?: string }) {
+  async function agir(id: number, dados: { categoria?: string; status?: "pendente" | "confirmado" | "cancelado" }) {
     try {
       await api.alterar(id, dados);
       setAberto(null);

@@ -1,9 +1,11 @@
 import { Tabs } from "expo-router";
+import { Bloqueio } from "../components/bloqueio";
 import { useTema } from "../components/tema";
 
 export default function LayoutRaiz() {
   const t = useTema();
   return (
+    <Bloqueio>
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: t.cartao },
@@ -22,5 +24,6 @@ export default function LayoutRaiz() {
       <Tabs.Screen name="calendario" options={{ title: "Calendario", tabBarLabel: "Gastos" }} />
       <Tabs.Screen name="ajustes" options={{ title: "Ajustes", tabBarLabel: "Ajustes" }} />
     </Tabs>
+    </Bloqueio>
   );
 }

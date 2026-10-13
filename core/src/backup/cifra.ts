@@ -1,5 +1,5 @@
 import { gcm } from "@noble/ciphers/aes.js";
-import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
+import { pbkdf2Async } from "@noble/hashes/pbkdf2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { deBase64, paraBase64 } from "../util/base64";
 import { deUtf8, utf8 } from "../util/sha256";
@@ -25,18 +25,19 @@ export interface Cabecalho {
 }
 
 const aad = (c: Cabecalho) => utf8(`${c.formato}|${c.versao}|${c.kdf}|${c.iteracoes}|${c.sal}|${c.nonce}`);
-const chave = (senha: string, sal: Uint8Array, iter: number) => pbkdf2(sha256, utf8(senha.normalize("NFKC")), sal, { c: iter, dkLen: 32 });
+/** Versao assincrona com cessao periodica ao laco de eventos: a tela nao congela durante o calculo no iPhone. */
+const chave = (senha: string, sal: Uint8Array, iter: number) => pbkdf2Async(sha256, utf8(senha.normalize("NFKC")), sal, { c: iter, dkLen: 32, asyncTick: 10 });
 
-export function cifrar(texto: string, senha: string, aleatorio: (n: number) => Uint8Array, iteracoes = ITERACOES_PADRAO): string {
+export async function cifrar(texto: string, senha: string, aleatorio: (n: number) => Uint8Array, iteracoes = ITERACOES_PADRAO): Promise<string> {
   if (senha.length < TAMANHO_MIN_SENHA) throw new Error(`a senha deve ter ao menos ${TAMANHO_MIN_SENHA} caracteres`);
   const sal = aleatorio(16);
   const nonce = aleatorio(12);
   const cab: Cabecalho = { formato: "cf-backup", versao: 1, kdf: "pbkdf2-sha256", iteracoes, sal: paraBase64(sal), nonce: paraBase64(nonce) };
-  const dados = gcm(chave(senha, sal, iteracoes), nonce, aad(cab)).encrypt(utf8(texto));
+  const dados = gcm(await chave(senha, sal, iteracoes), nonce, aad(cab)).encrypt(utf8(texto));
   return JSON.stringify({ ...cab, dados: paraBase64(dados) });
 }
 
-export function decifrar(arquivo: string, senha: string): string {
+export async function decifrar(arquivo: string, senha: string): Promise<string> {
   let o: Cabecalho & { dados: string };
   try {
     o = JSON.parse(arquivo);
@@ -48,7 +49,7 @@ export function decifrar(arquivo: string, senha: string): string {
   try {
     const sal = deBase64(o.sal);
     const nonce = deBase64(o.nonce);
-    const claro = gcm(chave(senha, sal, o.iteracoes), nonce, aad(o)).decrypt(deBase64(o.dados));
+    const claro = gcm(await chave(senha, sal, o.iteracoes), nonce, aad(o)).decrypt(deBase64(o.dados));
     return deUtf8(claro);
   } catch {
     // Senha errada e arquivo adulterado sao indistinguiveis por desenho (GCM); nao revelar qual.
