@@ -1,0 +1,33 @@
+# Uso: copie backend/.env.example para backend/.env, preencha, e rode `docker compose up -d`.
+# Com dominio proprio (VPS): docker compose --profile https up -d   (defina DOMINIO e EMAIL_ACME)
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    volumes:
+      - dados:/data
+    # Publicado apenas no loopback: o acesso externo passa pelo HTTPS (Caddy) ou por VPN privada.
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  caddy:
+    profiles: ["https"]
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO:?defina DOMINIO}
+      EMAIL_ACME: ${EMAIL_ACME:?defina EMAIL_ACME}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_dados:/data
+      - caddy_config:/config
+
+volumes:
+  dados:
+  caddy_dados:
+  caddy_config:
