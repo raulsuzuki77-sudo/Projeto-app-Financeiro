@@ -98,3 +98,7 @@ Premissas e limites que o usuario deve conhecer:
 - IR: na renda fixa usa a tabela regressiva (22,5%, 20%, 17,5%, 15%) pela duracao total, aplicada a todos os aportes, o que superestima o imposto (resultado conservador). Come-cotas, IOF e isencoes nao sao modelados. Confirmar a regra vigente com fonte oficial antes de usar para decisao.
 - O resultado e simulacao educacional, nao recomendacao individualizada de investimento (aviso exibido junto de cada simulacao).
 - As premissas sao editaveis no aplicativo (secao "Premissas de rentabilidade" na aba Metas) e pela API.
+
+## 9. Perfis de risco e metas ajustaveis (13/10/2026)
+
+Cada meta passa a ter um perfil de risco (conservador, moderado ou arrojado) escolhido pelo usuario; o cenario correspondente aparece destacado ("seu perfil"). Metas podem ser editadas a qualquer momento (nome, tipo, valor, prazo, valor inicial e perfil), com revalidacao completa a cada edicao (`PATCH /api/metas/:id`). As premissas de rentabilidade de cada perfil tambem sao editaveis. O sistema NAO sugere perfil nem produto: o perfil e escolha do usuario, e as simulacoes continuam sendo educacionais. Verificado: 44 testes do servidor (um novo cobre perfil e edicao parcial) e compilacao do bundle iOS; nao verificado em aparelho.

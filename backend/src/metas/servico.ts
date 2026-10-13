@@ -52,22 +52,40 @@ export interface Meta {
   valor_alvo_centavos: number;
   aporte_inicial_centavos: number;
   prazo_meses: number;
+  /** Perfil de risco escolhido pelo usuario para esta meta; define qual cenario e destacado. */
+  perfil: Cenario;
 }
 
-export function criarMeta(db: Db, usuarioId: string, m: Omit<Meta, "id">): number {
+function validarMeta(m: Omit<Meta, "id">): void {
   if (!m.nome.trim()) throw new Error("nome obrigatorio");
   if (!Number.isInteger(m.valor_alvo_centavos) || m.valor_alvo_centavos <= 0) throw new Error("valor alvo invalido");
   if (!Number.isInteger(m.aporte_inicial_centavos) || m.aporte_inicial_centavos < 0) throw new Error("aporte inicial invalido");
   if (!Number.isInteger(m.prazo_meses) || m.prazo_meses < 1 || m.prazo_meses > 1200) throw new Error("prazo deve estar entre 1 e 1200 meses");
   if (!["reserva_emergencia", "curto_prazo", "medio_prazo", "longo_prazo"].includes(m.tipo)) throw new Error("tipo de meta invalido");
+  if (!(CENARIOS as readonly string[]).includes(m.perfil)) throw new Error("perfil deve ser conservador, moderado ou arrojado");
+}
+
+export function criarMeta(db: Db, usuarioId: string, m: Omit<Meta, "id">): number {
+  validarMeta(m);
   const r = db
-    .prepare("INSERT INTO meta (usuario_id, nome, tipo, valor_alvo_centavos, aporte_inicial_centavos, prazo_meses, criada_em) VALUES (?,?,?,?,?,?,?)")
-    .run(usuarioId, m.nome.trim(), m.tipo, m.valor_alvo_centavos, m.aporte_inicial_centavos, m.prazo_meses, new Date().toISOString());
+    .prepare("INSERT INTO meta (usuario_id, nome, tipo, valor_alvo_centavos, aporte_inicial_centavos, prazo_meses, perfil, criada_em) VALUES (?,?,?,?,?,?,?,?)")
+    .run(usuarioId, m.nome.trim(), m.tipo, m.valor_alvo_centavos, m.aporte_inicial_centavos, m.prazo_meses, m.perfil, new Date().toISOString());
   return Number(r.lastInsertRowid);
 }
 
+/** Atualização parcial: só os campos enviados mudam; o resultado final é revalidado por inteiro. */
+export function atualizarMeta(db: Db, usuarioId: string, id: number, parcial: Partial<Omit<Meta, "id">>): Meta {
+  const atual = listarMetas(db, usuarioId).find((x) => x.id === id);
+  if (!atual) throw new Error("meta nao encontrada");
+  const novo = { ...atual, ...Object.fromEntries(Object.entries(parcial).filter(([, v]) => v !== undefined)) } as Meta;
+  validarMeta(novo);
+  db.prepare("UPDATE meta SET nome = ?, tipo = ?, valor_alvo_centavos = ?, aporte_inicial_centavos = ?, prazo_meses = ?, perfil = ? WHERE id = ? AND usuario_id = ?")
+    .run(novo.nome.trim(), novo.tipo, novo.valor_alvo_centavos, novo.aporte_inicial_centavos, novo.prazo_meses, novo.perfil, id, usuarioId);
+  return { ...novo, nome: novo.nome.trim() };
+}
+
 export function listarMetas(db: Db, usuarioId: string): Meta[] {
-  return db.prepare("SELECT id, nome, tipo, valor_alvo_centavos, aporte_inicial_centavos, prazo_meses FROM meta WHERE usuario_id = ? AND ativa = 1 ORDER BY id").all(usuarioId) as Meta[];
+  return db.prepare("SELECT id, nome, tipo, valor_alvo_centavos, aporte_inicial_centavos, prazo_meses, perfil FROM meta WHERE usuario_id = ? AND ativa = 1 ORDER BY id").all(usuarioId) as Meta[];
 }
 
 export function removerMeta(db: Db, usuarioId: string, id: number): boolean {
@@ -85,6 +103,8 @@ export interface CenarioMeta {
   ir_estimado_centavos: number;
   valor_alvo_nominal_centavos: number;
   atingida_sem_aportes: boolean;
+  /** Este e o cenario do perfil de risco escolhido para a meta. */
+  perfil_da_meta: boolean;
   /** Se informado aporte mensal: prazo (meses) para atingir a meta com ele, nesse cenário; null = nunca em 100 anos. */
   prazo_com_aporte_meses?: number | null;
 }
@@ -105,6 +125,7 @@ export function cenariosDaMeta(db: Db, usuarioId: string, meta: Meta, aporteMens
       ir_estimado_centavos: c(r.ir_estimado),
       valor_alvo_nominal_centavos: c(r.valor_alvo_nominal),
       atingida_sem_aportes: r.atingida_sem_aportes,
+      perfil_da_meta: nome === meta.perfil,
     };
     if (aporteMensalCentavos !== undefined) out.prazo_com_aporte_meses = prazoParaAtingir({ ...base, aporteMensal: aporteMensalCentavos / 100 });
     return out;

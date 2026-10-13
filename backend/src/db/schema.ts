@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS meta (
   valor_alvo_centavos INTEGER NOT NULL CHECK (valor_alvo_centavos > 0),
   aporte_inicial_centavos INTEGER NOT NULL DEFAULT 0 CHECK (aporte_inicial_centavos >= 0),
   prazo_meses INTEGER NOT NULL CHECK (prazo_meses BETWEEN 1 AND 1200),
+  perfil TEXT NOT NULL DEFAULT 'moderado' CHECK (perfil IN ('conservador','moderado','arrojado')),
   ativa INTEGER NOT NULL DEFAULT 1,
   criada_em TEXT NOT NULL
 );

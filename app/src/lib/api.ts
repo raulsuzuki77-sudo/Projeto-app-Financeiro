@@ -85,6 +85,7 @@ export interface Meta {
   valor_alvo_centavos: number;
   aporte_inicial_centavos: number;
   prazo_meses: number;
+  perfil: "conservador" | "moderado" | "arrojado";
 }
 
 export interface CenarioMeta {
@@ -96,6 +97,7 @@ export interface CenarioMeta {
   ir_estimado_centavos: number;
   valor_alvo_nominal_centavos: number;
   atingida_sem_aportes: boolean;
+  perfil_da_meta: boolean;
   prazo_com_aporte_meses?: number | null;
 }
 
@@ -138,6 +140,7 @@ export const api = {
     chamar<{ premissas: PremissaApi[]; premissas_padrao: boolean }>("/api/premissas", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(p) }),
   metas: () => chamar<Meta[]>("/api/metas"),
   criarMeta: (m: Omit<Meta, "id">) => chamar<{ id: number }>("/api/metas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(m) }),
+  atualizarMeta: (id: number, m: Partial<Omit<Meta, "id">>) => chamar<Meta>(`/api/metas/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(m) }),
   removerMeta: (id: number) => chamar<{ ok: boolean }>(`/api/metas/${id}`, { method: "DELETE" }),
   cenarios: (id: number, aporteCentavos?: number) => chamar<CenariosDaMeta>(`/api/metas/${id}/cenarios${aporteCentavos !== undefined ? `?aporte_mensal_centavos=${aporteCentavos}` : ""}`),
   reserva: (meses: number) => chamar<Reserva>(`/api/reserva-emergencia?meses=${meses}`),

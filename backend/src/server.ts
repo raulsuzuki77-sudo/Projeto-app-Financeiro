@@ -14,7 +14,7 @@ import { lerFaturaOcr } from "./importers/fatura-texto.js";
 import { lerComprovante } from "./importers/comprovante.js";
 import { registrarLancamento } from "./ingest/lancamentos.js";
 import { paraLocal } from "./parsing/tempo.js";
-import { capacidadePoupanca, cenariosDaMeta, criarMeta, lerPremissas, listarMetas, removerMeta, reservaDeEmergencia, salvarPremissa } from "./metas/servico.js";
+import { atualizarMeta, capacidadePoupanca, cenariosDaMeta, criarMeta, lerPremissas, listarMetas, removerMeta, reservaDeEmergencia, salvarPremissa } from "./metas/servico.js";
 import { assinaturaValida, extrairMensagensTexto } from "./whatsapp/webhook.js";
 
 export interface Config {
@@ -195,9 +195,17 @@ export function criarServidor(db: Db, cfg: Config): FastifyInstance {
     api.post("/api/metas", async (req, reply) => {
       try {
         const b = (req.body ?? {}) as Parameters<typeof criarMeta>[2];
-        const id = criarMeta(db, cfg.usuarioId, { nome: String(b.nome ?? ""), tipo: b.tipo, valor_alvo_centavos: b.valor_alvo_centavos, aporte_inicial_centavos: b.aporte_inicial_centavos ?? 0, prazo_meses: b.prazo_meses });
+        const id = criarMeta(db, cfg.usuarioId, { nome: String(b.nome ?? ""), tipo: b.tipo, valor_alvo_centavos: b.valor_alvo_centavos, aporte_inicial_centavos: b.aporte_inicial_centavos ?? 0, prazo_meses: b.prazo_meses, perfil: b.perfil ?? "moderado" });
         return reply.code(201).send({ id });
       } catch (e) { return erro400(reply, e); }
+    });
+    api.patch("/api/metas/:id", async (req, reply) => {
+      const id = Number((req.params as { id: string }).id);
+      try {
+        return atualizarMeta(db, cfg.usuarioId, id, (req.body ?? {}) as Parameters<typeof atualizarMeta>[3]);
+      } catch (e) {
+        return e instanceof Error && e.message === "meta nao encontrada" ? reply.code(404).send({ erro: e.message }) : erro400(reply, e);
+      }
     });
     api.delete("/api/metas/:id", async (req, reply) => {
       return removerMeta(db, cfg.usuarioId, Number((req.params as { id: string }).id)) ? { ok: true } : reply.code(404).send({ erro: "meta nao encontrada" });

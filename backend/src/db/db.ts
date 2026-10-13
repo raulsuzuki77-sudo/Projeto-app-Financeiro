@@ -10,6 +10,8 @@ export function abrirBanco(caminho: string = ":memory:"): Db {
   db.exec(SCHEMA);
   // Migração para bancos criados antes da coluna motivo_revisao.
   const colunas = db.prepare("PRAGMA table_info(lancamento)").all() as { name: string }[];
+  const colMeta = db.prepare("PRAGMA table_info(meta)").all() as { name: string }[];
+  if (!colMeta.some((c) => c.name === "perfil")) db.exec("ALTER TABLE meta ADD COLUMN perfil TEXT NOT NULL DEFAULT 'moderado'");
   if (!colunas.some((c) => c.name === "motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
   return db;
 }

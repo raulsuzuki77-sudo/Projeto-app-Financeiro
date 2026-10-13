@@ -64,3 +64,20 @@ test("reserva de emergencia usa so confirmados essenciais dos ultimos 3 meses fe
   assert.equal(cp.sobra_media_mensal_centavos, 250000);
   assert.equal((await a.inject({ method: "GET", url: "/api/reserva-emergencia?meses=99", headers: H })).statusCode, 400);
 });
+
+test("meta: perfil de risco e edicao parcial revalidada", async () => {
+  const a = criarServidor(abrirBanco(), { apiToken: TOKEN, usuarioId: "local" });
+  assert.equal((await a.inject({ method: "POST", url: "/api/metas", headers: H, payload: { nome: "x", tipo: "curto_prazo", valor_alvo_centavos: 100000, prazo_meses: 12, perfil: "ousado" } })).statusCode, 400);
+  const id = (await a.inject({ method: "POST", url: "/api/metas", headers: H, payload: { nome: "Casa", tipo: "longo_prazo", valor_alvo_centavos: 30_000_000, prazo_meses: 120 } })).json().id;
+  const padrao = (await a.inject({ method: "GET", url: `/api/metas/${id}/cenarios`, headers: H })).json();
+  assert.equal(padrao.meta.perfil, "moderado");
+  assert.deepEqual(padrao.cenarios.filter((c: { perfil_da_meta: boolean }) => c.perfil_da_meta).map((c: { cenario: string }) => c.cenario), ["moderado"]);
+  const p = await a.inject({ method: "PATCH", url: `/api/metas/${id}`, headers: H, payload: { perfil: "conservador", prazo_meses: 180 } });
+  assert.equal(p.statusCode, 200);
+  assert.equal(p.json().prazo_meses, 180);
+  assert.equal(p.json().valor_alvo_centavos, 30_000_000); // campos nao enviados permanecem
+  const novo = (await a.inject({ method: "GET", url: `/api/metas/${id}/cenarios`, headers: H })).json();
+  assert.deepEqual(novo.cenarios.filter((c: { perfil_da_meta: boolean }) => c.perfil_da_meta).map((c: { cenario: string }) => c.cenario), ["conservador"]);
+  assert.equal((await a.inject({ method: "PATCH", url: `/api/metas/${id}`, headers: H, payload: { prazo_meses: 0 } })).statusCode, 400);
+  assert.equal((await a.inject({ method: "PATCH", url: "/api/metas/9999", headers: H, payload: { nome: "z" } })).statusCode, 404);
+});
