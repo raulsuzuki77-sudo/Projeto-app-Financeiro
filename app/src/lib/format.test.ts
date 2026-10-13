@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { intensidade, mesAtual, mudarMes, reaisParaCentavos, ultimoDia, urlServidorValida } from "./format.ts";
+import { percentualParaFracao, intensidade, mesAtual, mudarMes, reaisParaCentavos, ultimoDia, urlServidorValida } from "./format.ts";
 
 test("mes: navegacao e ultimo dia", () => {
   assert.equal(mudarMes("2026-01", -1), "2025-12");
@@ -29,4 +29,11 @@ test("reais para centavos", () => {
   assert.equal(reaisParaCentavos("10,5"), 1050);
   assert.equal(reaisParaCentavos("abc"), null);
   assert.equal(reaisParaCentavos("1,234.56"), null);
+});
+
+test("percentual para fracao", () => {
+  assert.equal(percentualParaFracao("10"), 0.1);
+  assert.equal(percentualParaFracao("10,5%"), 0.105);
+  assert.equal(percentualParaFracao("150"), null);
+  assert.equal(percentualParaFracao("x"), null);
 });

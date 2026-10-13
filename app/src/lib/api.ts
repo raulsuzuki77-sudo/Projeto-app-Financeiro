@@ -115,6 +115,14 @@ export interface Reserva {
   observacao: string;
 }
 
+export interface PremissaApi {
+  chave: "conservador" | "moderado" | "arrojado" | "ipca";
+  retorno_nominal_aa: number;
+  ir_modo: "regressivo" | "fixa" | "isento";
+  ir_aliquota: number | null;
+  atualizada_em: string | null;
+}
+
 export const api = {
   testar: (c: Conexao) => chamar<{ ok: boolean }>("/health", {}, 8000, c),
   enviarMensagem: (texto: string) =>
@@ -125,6 +133,9 @@ export const api = {
   resumo: (mes: string) => chamar<ResumoMensal>(`/api/dashboard/resumo?mes=${mes}`),
   mapaCalor: (de: string, ate: string) => chamar<MapaCalor>(`/api/dashboard/mapa-calor?de=${de}&ate=${ate}`),
   calendario: (mes: string) => chamar<{ data: string; total_centavos: number; quantidade: number }[]>(`/api/dashboard/calendario?mes=${mes}`),
+  premissas: () => chamar<{ premissas: PremissaApi[]; premissas_padrao: boolean }>("/api/premissas"),
+  salvarPremissa: (p: { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null }) =>
+    chamar<{ premissas: PremissaApi[]; premissas_padrao: boolean }>("/api/premissas", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(p) }),
   metas: () => chamar<Meta[]>("/api/metas"),
   criarMeta: (m: Omit<Meta, "id">) => chamar<{ id: number }>("/api/metas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(m) }),
   removerMeta: (id: number) => chamar<{ ok: boolean }>(`/api/metas/${id}`, { method: "DELETE" }),

@@ -3,8 +3,8 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTema } from "../components/tema";
 import { Aviso, Botao, Campo, Cartao, Texto } from "../components/ui";
-import { api, type CenariosDaMeta, type Meta, type Reserva } from "../lib/api";
-import { formatarBRL, reaisParaCentavos } from "../lib/format";
+import { api, type CenariosDaMeta, type Meta, type PremissaApi, type Reserva } from "../lib/api";
+import { formatarBRL, percentualParaFracao, reaisParaCentavos } from "../lib/format";
 
 const TIPOS: { id: string; rotulo: string }[] = [
   { id: "reserva_emergencia", rotulo: "Reserva de emergencia" },
@@ -22,12 +22,16 @@ export default function Metas() {
   const [sobra, setSobra] = useState<number | null>(null);
   const [aberta, setAberta] = useState<CenariosDaMeta | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [prem, setPrem] = useState<PremissaApi[]>([]);
+  const [edit, setEdit] = useState<Record<string, string>>({});
   const [f, setF] = useState({ nome: "", valor: "", prazo: "", inicial: "", tipo: "curto_prazo" });
 
   const carregar = useCallback(async () => {
     try {
       setErro(null);
-      const [m, r, p] = await Promise.all([api.metas(), api.reserva(6), api.poupanca()]);
+      const [m, r, p, pr] = await Promise.all([api.metas(), api.reserva(6), api.poupanca(), api.premissas()]);
+      setPrem(pr.premissas);
+      setEdit(Object.fromEntries(pr.premissas.map((x) => [x.chave, String((x.retorno_nominal_aa * 100).toFixed(2)).replace(".", ",")])));
       setMetas(m);
       setReserva(r);
       setSobra(p.sobra_media_mensal_centavos);
@@ -49,6 +53,21 @@ export default function Metas() {
       await carregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Falha ao criar a meta.");
+    }
+  }
+
+  async function salvarPremissas() {
+    try {
+      setErro(null);
+      for (const p of prem) {
+        const v = percentualParaFracao(edit[p.chave] ?? "");
+        if (v === null) return setErro(`Percentual invalido em ${p.chave}. Use numeros como 10 ou 10,5.`);
+        await api.salvarPremissa({ chave: p.chave, retorno_nominal_aa: v, ir_modo: p.ir_modo, ir_aliquota: p.ir_aliquota });
+      }
+      setAberta(null);
+      await carregar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Falha ao salvar premissas.");
     }
   }
 
@@ -93,6 +112,14 @@ export default function Metas() {
           ) : null}
         </Cartao>
       ))}
+
+      <Cartao titulo="Premissas de rentabilidade (percentual ao ano)">
+        {prem.some((p) => p.atualizada_em === null) ? <Aviso tipo="info">Valores ilustrativos do sistema, nao sao taxas atuais de mercado. Informe as suas premissas, com base em fontes oficiais.</Aviso> : null}
+        {prem.map((p) => (
+          <Campo key={p.chave} rotulo={p.chave === "ipca" ? "Inflacao (IPCA) assumida" : `Retorno nominal ${p.chave}`} value={edit[p.chave] ?? ""} onChangeText={(v) => setEdit({ ...edit, [p.chave]: v })} keyboardType="decimal-pad" />
+        ))}
+        <Botao rotulo="Salvar premissas" onPress={salvarPremissas} secundario />
+      </Cartao>
 
       <Cartao titulo="Nova meta">
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>

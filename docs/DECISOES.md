@@ -97,4 +97,4 @@ Premissas e limites que o usuario deve conhecer:
 - Retorno constante e aportes no fim do mes. Monte Carlo nao foi implementado.
 - IR: na renda fixa usa a tabela regressiva (22,5%, 20%, 17,5%, 15%) pela duracao total, aplicada a todos os aportes, o que superestima o imposto (resultado conservador). Come-cotas, IOF e isencoes nao sao modelados. Confirmar a regra vigente com fonte oficial antes de usar para decisao.
 - O resultado e simulacao educacional, nao recomendacao individualizada de investimento (aviso exibido junto de cada simulacao).
-- A tela ainda nao permite editar as premissas (apenas a API `PUT /api/premissas`).
+- As premissas sao editaveis no aplicativo (secao "Premissas de rentabilidade" na aba Metas) e pela API.

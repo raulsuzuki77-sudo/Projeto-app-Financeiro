@@ -29,4 +29,4 @@ Critério: valor entregue ao usuário por unidade de risco. Hoje o backend e o a
 
 ## Estado (atualizado)
 
-T1 concluída. T2: artefatos prontos e testados no que foi possível; falta a decisão de hospedagem e a validação em servidor real (a imagem Docker não pôde ser construída neste ambiente). T3: motor, API e tela concluídos e testados; falta a tela de edição das premissas e a atualização das taxas com fonte oficial. Próxima a executar: T4 (orçamento e alertas).
+T1 concluída. T2: artefatos prontos e testados no que foi possível; falta a decisão de hospedagem e a validação em servidor real (a imagem Docker não pôde ser construída neste ambiente). T3: motor, API e tela concluídos e testados; falta apenas a atualização automática das taxas por fonte oficial (hoje o usuário informa). Próxima a executar: T4 (orçamento e alertas).

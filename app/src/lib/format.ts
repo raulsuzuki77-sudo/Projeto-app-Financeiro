@@ -57,3 +57,11 @@ export function reaisParaCentavos(texto: string): number | null {
   const n = Number(t.replace(/\./g, "").replace(",", "."));
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
+
+/** "10", "10,5" ou "10.5" (percentual ao ano) -> fração 0,10 / 0,105; null se inválido ou fora de 0..100. */
+export function percentualParaFracao(texto: string): number | null {
+  const t = texto.trim().replace("%", "").replace(",", ".");
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return n >= 0 && n <= 100 ? n / 100 : null;
+}
