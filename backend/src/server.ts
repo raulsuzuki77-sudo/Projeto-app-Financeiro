@@ -1,9 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
-  NATUREZAS, alterarLancamento, atualizarMeta, calendarioMensal, capacidadePoupanca, cenariosDaMeta, criarMeta, hashLote, importarItens,
-  lerCsv, lerComprovante, lerFaturaOcr, lerFaturaTexto, lerOfx, lerPremissas, listarLancamentos, listarMetas, mapaCalor, paraLocal,
-  processarMensagem, registrarLancamento, removerMeta, reservaDeEmergencia, resumoMensal, salvarPremissa,
+  NATUREZAS, alterarLancamento, atualizarMeta, calendarioMensal, capacidadePoupanca, cenariosDaMeta, criarMeta, hashLote,
+  importarComprovante, importarFatura, importarTexto, lerPremissas, listarLancamentos, listarMetas, mapaCalor,
+  processarMensagem, removerMeta, reservaDeEmergencia, resumoMensal, salvarPremissa,
   type Natureza, type Status,
 } from "../../core/src/index";
 import { abrirBanco, type Db } from "./db/db";
@@ -114,24 +114,10 @@ export function criarServidor(db: Db, cfg: Config): FastifyInstance {
       const q = req.query as { cartao_id?: string; conta_id?: string };
       const corpo = typeof req.body === "string" ? req.body : "";
       if (!corpo) return reply.code(400).send({ erro: "envie o conteudo do arquivo como text/plain" });
-      const base = {
-        usuario_id: cfg.usuarioId,
-        lote: hashLote(corpo),
-        cartao_id: q.cartao_id ? Number(q.cartao_id) : null,
-        conta_id: q.conta_id ? Number(q.conta_id) : null,
-      };
-      if (formato === "ofx") return { ...importarItens(db, lerOfx(corpo), { ...base, origem: "ofx", positivoEhDespesa: false }), rejeitadas: [] };
-      if (formato === "csv") {
-        const { itens, rejeitadas } = lerCsv(corpo);
-        return { ...importarItens(db, itens, { ...base, origem: "csv" }), rejeitadas };
-      }
-      if (formato === "fatura-texto") {
-        const { itens, nao_lidas } = lerFaturaTexto(corpo);
-        return { ...importarItens(db, itens, { ...base, origem: "fatura_texto", positivoEhDespesa: true }), nao_lidas };
-      }
-      return reply.code(404).send({ erro: "formato desconhecido (ofx, csv, fatura-texto)" });
+      if (formato !== "ofx" && formato !== "csv" && formato !== "fatura-texto") return reply.code(404).send({ erro: "formato desconhecido (ofx, csv, fatura-texto)" });
+      const r = importarTexto(db, formato, corpo, { usuario_id: cfg.usuarioId, cartao_id: q.cartao_id ? Number(q.cartao_id) : null, conta_id: q.conta_id ? Number(q.conta_id) : null });
+      return r.ok ? { ...r.relatorio, rejeitadas: r.rejeitadas ?? [], nao_lidas: r.nao_lidas ?? [], conciliacao: r.conciliacao ?? null } : reply.code(422).send({ erro: r.erro });
     });
-
 
     // Arquivo (PDF/foto) -> OCR -> lançamentos. tipo=fatura (PDF/imagem de fatura) | comprovante (foto de cupom/PIX).
     api.post("/api/importacoes-arquivo", async (req, reply) => {
@@ -150,29 +136,13 @@ export function criarServidor(db: Db, cfg: Config): FastifyInstance {
         return reply.code(422).send({ erro: "falha ao ler o arquivo (corrompido ou ilegivel)" });
       }
       const lote = hashLote(buf.toString("base64"));
-
+      const ctx = { usuario_id: cfg.usuarioId, cartao_id, conta_id: q.conta_id ? Number(q.conta_id) : null };
       if (q.tipo === "fatura") {
-        const r = lerFaturaOcr(linhas);
-        if (r.itens.length === 0) return reply.code(422).send({ erro: "nenhum item de fatura reconhecido", nao_lidas: r.nao_lidas });
-        const divergente = r.conciliacao && !r.conciliacao.fecha;
-        const rel = importarItens(db, r.itens, {
-          usuario_id: cfg.usuarioId, origem: "pdf", lote, cartao_id, conta_id: q.conta_id ? Number(q.conta_id) : null, positivoEhDespesa: true,
-          forcarRevisao: divergente ? "soma dos itens nao fecha com o total da fatura" : undefined,
-        });
-        return { ...rel, conciliacao: r.conciliacao, nao_lidas: r.nao_lidas };
+        const r = importarFatura(db, linhas, lote, ctx);
+        return r.ok ? { ...r.relatorio, conciliacao: r.conciliacao, nao_lidas: r.nao_lidas } : reply.code(422).send({ erro: r.erro, nao_lidas: r.nao_lidas });
       }
-
-      const c = lerComprovante(linhas.map((l) => l.texto));
-      if (!c.ok) return reply.code(422).send({ erro: c.motivo });
-      const agora = paraLocal(new Date());
-      const d = c.dados;
-      const alerta = ["foto: confirme os dados lidos", d.cnpj_valido === false ? "CNPJ com digito verificador invalido (possivel erro de leitura)" : "", ...d.inconsistencias].filter(Boolean).join("; ");
-      const reg = registrarLancamento(db, {
-        usuario_id: cfg.usuarioId, tipo: "despesa", valor_centavos: d.valor_centavos, descricao: d.estabelecimento, forma_pagamento: d.forma_pagamento, cartao_id,
-        data_local: d.data_local ?? agora.data_local, hora_local: d.hora_local, precisao_horario: d.hora_local !== null ? "exato" : "desconhecido",
-        origem: "foto", referencia: d.id_transacao ? `pix:${d.id_transacao}` : lote, alerta_revisao: alerta,
-      });
-      return { resultado: reg.resultado, dados_lidos: d, alerta };
+      const c = importarComprovante(db, linhas.map((l) => l.texto), lote, ctx);
+      return c.ok ? { resultado: c.resultado, dados_lidos: c.dados_lidos, alerta: c.alerta } : reply.code(422).send({ erro: c.erro });
     });
 
     // --- Metas e cenarios (simulacao educacional) ---

@@ -18,3 +18,8 @@ export * from "./importers/comprovante";
 export * from "./dashboard/consultas";
 export * from "./metas/calculos";
 export * from "./metas/servico";
+export * from "./util/base64";
+export * from "./cartoes/cartoes";
+export * from "./importers/orquestracao";
+export * from "./backup/dados";
+export * from "./backup/cifra";

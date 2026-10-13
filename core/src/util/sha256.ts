@@ -26,6 +26,22 @@ export function utf8(s: string): Uint8Array {
   return Uint8Array.from(out);
 }
 
+/** Decodifica UTF-8 (sem TextDecoder, que pode nao existir no Hermes). Bytes invalidos viram U+FFFD. */
+export function deUtf8(b: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < b.length; ) {
+    const c = b[i]!;
+    let cp = 0xfffd, n = 1;
+    if (c < 0x80) cp = c;
+    else if (c >= 0xc2 && c < 0xe0 && i + 1 < b.length && (b[i + 1]! & 0xc0) === 0x80) { cp = ((c & 0x1f) << 6) | (b[i + 1]! & 0x3f); n = 2; }
+    else if (c >= 0xe0 && c < 0xf0 && i + 2 < b.length && (b[i + 1]! & 0xc0) === 0x80 && (b[i + 2]! & 0xc0) === 0x80) { cp = ((c & 0x0f) << 12) | ((b[i + 1]! & 0x3f) << 6) | (b[i + 2]! & 0x3f); n = 3; }
+    else if (c >= 0xf0 && c < 0xf5 && i + 3 < b.length && (b[i + 1]! & 0xc0) === 0x80 && (b[i + 2]! & 0xc0) === 0x80 && (b[i + 3]! & 0xc0) === 0x80) { cp = ((c & 0x07) << 18) | ((b[i + 1]! & 0x3f) << 12) | ((b[i + 2]! & 0x3f) << 6) | (b[i + 3]! & 0x3f); n = 4; }
+    s += String.fromCodePoint(cp);
+    i += n;
+  }
+  return s;
+}
+
 const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n));
 
 export function sha256Bytes(data: Uint8Array): Uint8Array {
