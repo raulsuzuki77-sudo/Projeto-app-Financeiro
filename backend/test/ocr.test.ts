@@ -90,3 +90,30 @@ test("API: foto de comprovante vira lancamento pendente; arquivo invalido e recu
   const again = await app.inject({ method: "POST", url: "/api/importacoes-arquivo?tipo=comprovante", headers: { ...H, "content-type": "image/png" }, payload: bin("comprovante-sintetico.png") });
   assert.equal(again.json().resultado, "ja_processado");
 });
+
+// Linhas no formato de saida do OCR de um comprovante PIX de banco digital (dados ficticios).
+// O ID embute a data/hora em UTC (2026-10-09 18:50 UTC = 15:50 em Brasilia).
+const PIX = [
+  "Comprovante de", "pagamento", "09 OUT 2026 - 15:50:42", "Valor R$ 700,00", "Tipo de transferência Pix",
+  "ID da", "E123456782026100918500abcdefghij", "Destino", "Nome CLINICA EXEMPLO", "CNPJ 11222333000181",
+  "Origem", "Nome Fulano de Tal", "CPF ***.123.456-**", "Banco Exemplo S.A. - Instituição de Pagamento", "CNPJ 18.236.120/0001-58",
+  "ID da transação: E12345678202610", "091850Oabcdefghij",
+];
+
+test("comprovante PIX: destino (nao a origem nem o rodape), data por extenso, ID e forma de pagamento", () => {
+  const c = lerComprovante(PIX);
+  assert.ok(c.ok);
+  if (!c.ok) return;
+  assert.equal(c.dados.valor_centavos, 70000);
+  assert.equal(c.dados.estabelecimento, "CLINICA EXEMPLO");
+  assert.equal(c.dados.data_local, "2026-10-09");
+  assert.equal(c.dados.hora_local, 15);
+  assert.equal(c.dados.cnpj, "11.222.333/0001-81"); // CNPJ do destino, nao o do rodape
+  assert.equal(c.dados.cnpj_valido, true);
+  assert.equal(c.dados.forma_pagamento, "pix");
+});
+
+test("comprovante PIX: data exibida divergente do ID gera inconsistencia", () => {
+  const c = lerComprovante(PIX.map((l) => l.replace("09 OUT 2026", "19 OUT 2026")));
+  assert.ok(c.ok && c.dados.inconsistencias.some((i) => /difere da data embutida/.test(i)));
+});

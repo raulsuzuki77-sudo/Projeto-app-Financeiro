@@ -172,11 +172,11 @@ export function criarServidor(db: Db, cfg: Config): FastifyInstance {
       if (!c.ok) return reply.code(422).send({ erro: c.motivo });
       const agora = paraLocal(new Date());
       const d = c.dados;
-      const alerta = ["foto: confirme os dados lidos", d.cnpj_valido === false ? "CNPJ com digito verificador invalido (possivel erro de leitura)" : ""].filter(Boolean).join("; ");
+      const alerta = ["foto: confirme os dados lidos", d.cnpj_valido === false ? "CNPJ com digito verificador invalido (possivel erro de leitura)" : "", ...d.inconsistencias].filter(Boolean).join("; ");
       const reg = registrarLancamento(db, {
-        usuario_id: cfg.usuarioId, tipo: "despesa", valor_centavos: d.valor_centavos, descricao: d.estabelecimento, cartao_id,
+        usuario_id: cfg.usuarioId, tipo: "despesa", valor_centavos: d.valor_centavos, descricao: d.estabelecimento, forma_pagamento: d.forma_pagamento, cartao_id,
         data_local: d.data_local ?? agora.data_local, hora_local: d.hora_local, precisao_horario: d.hora_local !== null ? "exato" : "desconhecido",
-        origem: "foto", referencia: lote, alerta_revisao: alerta,
+        origem: "foto", referencia: d.id_transacao ? `pix:${d.id_transacao}` : lote, alerta_revisao: alerta,
       });
       return { resultado: reg.resultado, dados_lidos: d, alerta };
     });
