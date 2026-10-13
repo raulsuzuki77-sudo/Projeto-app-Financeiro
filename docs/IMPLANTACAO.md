@@ -1,3 +1,5 @@
+> **Substituído em 13/10/2026.** O projeto passou a ser 100% local no iPhone (ver `docs/INSTALACAO_IPHONE.md`). Este documento só vale se um dia for retomado o servidor opcional (WhatsApp, Open Finance, sincronização).
+
 # Implantação do servidor (T2)
 
 Objetivo: o aplicativo do iPhone precisa de um servidor sempre ligado e acessível com segurança. Os dados financeiros ficam nele.

@@ -1,3 +1,5 @@
+> Servidor OPCIONAL, hoje fora do caminho principal: o aplicativo roda sem ele. A logica de negocio mora em `../core`.
+
 # Backend (Fase 1)
 
 Requisitos: Node 22 ou superior. Para OCR: `apt install tesseract-ocr tesseract-ocr-por poppler-utils`.

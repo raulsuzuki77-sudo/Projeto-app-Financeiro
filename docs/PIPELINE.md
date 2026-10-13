@@ -1,32 +1,41 @@
 # Pipeline do projeto
 
-Atualizado em 13/10/2026.
+Atualizado em 13/10/2026, apos a decisao de tornar o aplicativo 100% local no iPhone, sem custo.
 
-## Pendência escolhida como prioritária: T2 Implantação
+## Concluido
 
-Critério: valor entregue ao usuário por unidade de risco. Hoje o backend e o aplicativo existem e passam nos testes, mas nada disso é usável no dia a dia enquanto não houver um servidor sempre ligado, acessível com segurança pelo iPhone, com backup. Todas as demais tarefas (metas, alertas, WhatsApp) só geram valor depois disso. Em segundo lugar vêm as metas e cenários, que foram pedidas explicitamente no escopo original e não dependem de nenhuma decisão externa.
+| Item | Entrega |
+|---|---|
+| T1 Comprovante PIX real | Leitura correta de comprovante real de banco digital |
+| T3 Metas e cenarios | Reserva de emergencia, metas, cenarios, perfil de risco, premissas editaveis |
+| L1 Nucleo compartilhado | `core/` sem Node e sem React Native, interface de banco, SHA-256 puro |
+| L2 Importacao, cartoes, backup | Orquestracao de importacao, cadastro de cartoes, backup cifrado AES-GCM |
+| L3 Aplicativo local | expo-sqlite, telas sem servidor, Face ID, backup/restauracao |
+| L4 OCR nativo | Modulo Swift (Vision + PDFKit) e agrupamento de linhas |
+| L5 Guia de instalacao | `docs/INSTALACAO_IPHONE.md` |
 
-## Ordem de execução
+## Em aberto (depende do usuario)
 
-| # | Tarefa | Depende de | Entradas do usuário | Critério de aceite |
-|---|---|---|---|---|
-| T1 | Comprovante PIX real | - | feito (comprovante enviado) | Valor, destino, data, hora, ID e forma de pagamento lidos corretamente do comprovante real; testes com dados fictícios |
-| T2 | Implantação (Docker, HTTPS ou VPN, backup) | - | escolher hospedagem A ou B | `docker compose up` sobe a API; iPhone registra um gasto no servidor; backup diário cifrado restaurado com sucesso em teste |
-| T3 | Metas e cenários de investimento | - | metas, prazos, perfil de risco | Reserva de emergência calculada sobre despesas essenciais reais; aporte necessário por meta e cenário; premissas editáveis e datadas; aviso de simulação; tela no aplicativo; testes dos cálculos contra valores conferidos à mão |
-| T4 | Orçamento e alertas | T2 | limites desejados por categoria | Orçamento 50/30/20 e por categoria; alertas de estouro, assinatura nova, cobrança duplicada, custo de juros do rotativo; compromisso de parcelas futuras |
-| T5 | WhatsApp em produção | T2 | número de bot e credenciais da Meta (por variável de ambiente, nunca pelo chat) | Mensagem enviada do número autorizado vira lançamento e a resposta chega ao WhatsApp; foto e PDF recebidos pelo WhatsApp passam pelo OCR |
-| T6 | Open Finance, prova de conceito | T2 | bancos usados, aceite de custo | Comparação de agregadores com custo e cobertura; sincronização de uma conta; conciliação com lançamentos existentes sem duplicar |
-| T7 | Segurança, LGPD e qualidade | T2 | - | Revisão de segurança; exportar e excluir todos os dados; limite de tentativas; criptografia de anexos; notificações; modo offline |
+| Item | O que fazer | Quem |
+|---|---|---|
+| V1 Validar no aparelho | Compilar no Mac, seguir o roteiro de primeiro uso e reportar erros (principalmente de compilacao do Swift e qualidade do OCR) | Usuario, depois ajustes por mim |
 
-## Regras de execução de cada tarefa
+## Proximas tarefas (apos V1)
 
-1. Marcar a tarefa como em andamento e declarar o que será entregue e o que não será.
-2. Testes automatizados escritos junto com o código; nenhuma afirmação de funcionamento sem teste ou execução.
-3. Tudo que não puder ser verificado no ambiente de desenvolvimento é registrado explicitamente como não verificado (ver `docs/IMPLANTACAO.md` como exemplo).
-4. Dados pessoais reais (comprovantes, faturas) são usados só para validar e nunca versionados; fixtures usam dados fictícios.
-5. Commit pequeno e descritivo, publicação na branch de desenvolvimento, documentação atualizada em `docs/DECISOES.md`.
-6. Uma tarefa só é dada como concluída com os critérios de aceite atendidos; o que sobrar vira nova tarefa.
+| # | Tarefa | Criterio de aceite |
+|---|---|---|
+| T4 | Orcamento e alertas | Orcamento 50/30/20 e por categoria; alertas locais de estouro, assinatura nova, cobranca duplicada, custo de juros do rotativo; compromisso de parcelas futuras |
+| T7 | Seguranca, LGPD e qualidade | Exportar e excluir todos os dados; revisao de seguranca; politica de retencao |
+| T8 | Notificacoes locais | Lembrete de vencimento e de revisao semanal, sem servidor |
+| T9 | Atualizacao de taxas | Importacao manual/assistida de Selic, CDI e IPCA com fonte e data |
 
-## Estado (atualizado)
+## Fora do escopo atual (exigem servidor)
 
-T1 concluída. T2: artefatos prontos e testados no que foi possível; falta a decisão de hospedagem e a validação em servidor real (a imagem Docker não pôde ser construída neste ambiente). T3: motor, API e tela concluídos e testados; falta apenas a atualização automática das taxas por fonte oficial (hoje o usuário informa). Próxima a executar: T4 (orçamento e alertas).
+WhatsApp, Open Finance, sincronizacao entre aparelhos. O codigo do servidor opcional continua em `backend/`.
+
+## Regras de execucao
+
+1. Testes automatizados junto do codigo; nenhuma afirmacao de funcionamento sem teste ou execucao.
+2. O que nao puder ser verificado neste ambiente e registrado como nao verificado.
+3. Dados pessoais reais usados so para validar e nunca versionados; fixtures usam dados ficticios.
+4. Commits pequenos e documentacao atualizada em `docs/DECISOES.md`.

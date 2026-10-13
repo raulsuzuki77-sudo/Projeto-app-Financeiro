@@ -21,7 +21,8 @@ export interface ResultadoFatura {
 /** Abaixo disto a linha lida por OCR vai para revisão. */
 export const LIMIAR_CONFIANCA_OCR = 80;
 
-const RE_ITEM = /^[(\[|\s]*(\d{2})\/(\d{2})\/(\d{4})\s+(.+?)\s+(-)?\s*R\$\s*([\d.]+,\d{2})$/;
+// A descricao e opcional: o OCR pode nao devolver texto onde o documento esta tarjado; o valor ainda e lido e o item vai para revisao.
+const RE_ITEM = /^[(\[|\s]*(\d{2})\/(\d{2})\/(\d{4})(?:\s+(.+?))?\s+(-)?\s*R\$\s*([\d.]+,\d{2})$/;
 const RE_PGTO_ANTERIOR = /pagamento de fatura|pagamento recebido/i;
 const RE_TOTAL = /Despesas e cr\S+ do m\S+.*?R\$\s*([\d.]+,\d{2})/i;
 
@@ -67,7 +68,7 @@ export function lerFaturaLinhas(linhas: { texto: string; confianca?: number }[])
       nao_lidas.push(linha);
       continue;
     }
-    let descricao = m[4]!.replace(/\s+/g, " ");
+    let descricao = (m[4] ?? "").replace(/\s+/g, " ");
     let parcela_atual: number | null = null;
     let parcela_total: number | null = null;
     const p = descricao.match(/\s*\((\d{2})\/(\d{2})\)\s*$/);
@@ -78,7 +79,10 @@ export function lerFaturaLinhas(linhas: { texto: string; confianca?: number }[])
     }
     const alertas: string[] = [];
     if (l.confianca !== undefined && l.confianca < LIMIAR_CONFIANCA_OCR) alertas.push(`confianca do OCR baixa (${l.confianca.toFixed(0)}%)`);
-    if (!/[A-Za-z]{3,}/.test(descricao)) alertas.push("descricao ilegivel");
+    if (!/[A-Za-z]{3,}/.test(descricao)) {
+      alertas.push("descricao ilegivel");
+      if (!descricao) descricao = "(descricao ilegivel)";
+    }
     itens.push({
       data_local: `${m[3]}-${m[2]}-${m[1]}`,
       descricao,

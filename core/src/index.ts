@@ -24,3 +24,4 @@ export * from "./importers/orquestracao";
 export * from "./backup/dados";
 export * from "./backup/cifra";
 export * from "./adaptadores/expo-sqlite";
+export * from "./ocr/linhas";
