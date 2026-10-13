@@ -6,12 +6,8 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 
-export interface LinhaOcr {
-  texto: string;
-  /** Média da confiança do Tesseract nas palavras da linha, de 0 a 100. */
-  confianca: number;
-  pagina: number;
-}
+import type { LinhaOcr } from "../../../core/src/ocr/tipos";
+export type { LinhaOcr };
 
 export type TipoArquivo = "pdf" | "png" | "jpeg";
 

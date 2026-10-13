@@ -2,7 +2,9 @@
 # Com dominio proprio (VPS): docker compose --profile https up -d   (defina DOMINIO e EMAIL_ACME)
 services:
   api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     env_file: ./backend/.env
     volumes:

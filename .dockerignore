@@ -1,0 +1,9 @@
+**/node_modules
+**/test
+**/*.db
+**/*.db-*
+**/.env
+**/.env.*
+app
+docs
+.git

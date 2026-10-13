@@ -6,10 +6,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-COPY src ./src
-COPY scripts ./scripts
+# Contexto de build = raiz do repositorio (o servidor importa ../core)
+COPY backend/package.json backend/package-lock.json ./backend/
+RUN cd backend && npm ci --omit=dev
+COPY core ./core
+COPY backend/src ./backend/src
+COPY backend/scripts ./backend/scripts
+WORKDIR /app/backend
 
 # Usuario sem privilegios; dados em volume
 RUN useradd --create-home --uid 10001 app && mkdir /data && chown app:app /data

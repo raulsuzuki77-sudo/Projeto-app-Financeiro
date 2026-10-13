@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { abrirBanco } from "../src/db/db.js";
-import { criarServidor } from "../src/server.js";
+import { abrirBanco } from "../src/db/db";
+import { criarServidor } from "../src/server";
 
 const TOKEN = "t".repeat(32);
 const SECRET = "segredo-app";

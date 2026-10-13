@@ -4,14 +4,14 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { fazerBackup } from "../src/backup.js";
-import { abrirBanco } from "../src/db/db.js";
+import { fazerBackup } from "../src/backup";
+import { abrirBanco } from "../src/db/db";
 
 test("backup consistente e retencao das copias mais antigas", async () => {
   const dir = mkdtempSync(join(tmpdir(), "bk-"));
   try {
     const origem = join(dir, "dados.db");
-    const db = abrirBanco(origem);
+    const db = abrirBanco(origem) as unknown as { close(): void; prepare(s: string): { run(): unknown } };
     db.prepare("INSERT INTO conta (nome) VALUES ('Corrente')").run();
     db.close();
     for (let i = 0; i < 4; i++) await fazerBackup(origem, join(dir, "bk"), 2, new Date(Date.UTC(2026, 9, 10 + i)));

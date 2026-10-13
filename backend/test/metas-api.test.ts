@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { abrirBanco } from "../src/db/db.js";
-import { criarServidor } from "../src/server.js";
-import { registrarLancamento } from "../src/ingest/lancamentos.js";
+import { abrirBanco } from "../src/db/db";
+import { criarServidor } from "../src/server";
+import { registrarLancamento } from "../../core/src/index";
 
 const TOKEN = "t".repeat(32);
 const H = { authorization: `Bearer ${TOKEN}` };

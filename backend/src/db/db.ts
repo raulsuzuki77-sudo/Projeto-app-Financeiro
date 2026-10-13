@@ -1,17 +1,13 @@
 import Database from "better-sqlite3";
-import { SCHEMA } from "./schema.js";
+import { prepararBanco, type Db } from "../../../core/src/index";
 
-export type Db = Database.Database;
+export type { Db };
 
 export function abrirBanco(caminho: string = ":memory:"): Db {
-  const db = new Database(caminho);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.exec(SCHEMA);
-  // Migração para bancos criados antes da coluna motivo_revisao.
-  const colunas = db.prepare("PRAGMA table_info(lancamento)").all() as { name: string }[];
-  const colMeta = db.prepare("PRAGMA table_info(meta)").all() as { name: string }[];
-  if (!colMeta.some((c) => c.name === "perfil")) db.exec("ALTER TABLE meta ADD COLUMN perfil TEXT NOT NULL DEFAULT 'moderado'");
-  if (!colunas.some((c) => c.name === "motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
+  const d = new Database(caminho);
+  d.pragma("journal_mode = WAL");
+  d.pragma("foreign_keys = ON");
+  const db = d as unknown as Db;
+  prepararBanco(db);
   return db;
 }

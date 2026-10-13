@@ -1,21 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
-import { abrirBanco, type Db } from "./db/db.js";
-import { NATUREZAS, type Natureza, type Status } from "./domain/types.js";
-import { alterarLancamento } from "./ingest/lancamentos.js";
-import { processarMensagem } from "./ingest/conversa.js";
-import { calendarioMensal, listarLancamentos, mapaCalor, resumoMensal } from "./dashboard/consultas.js";
-import { hashLote, importarItens } from "./importers/comum.js";
-import { lerOfx } from "./importers/ofx.js";
-import { lerCsv } from "./importers/csv.js";
-import { lerFaturaTexto } from "./importers/fatura-texto.js";
-import { detectarTipo, ocrArquivo, ocrDisponivel } from "./ocr/tesseract.js";
-import { lerFaturaOcr } from "./importers/fatura-texto.js";
-import { lerComprovante } from "./importers/comprovante.js";
-import { registrarLancamento } from "./ingest/lancamentos.js";
-import { paraLocal } from "./parsing/tempo.js";
-import { atualizarMeta, capacidadePoupanca, cenariosDaMeta, criarMeta, lerPremissas, listarMetas, removerMeta, reservaDeEmergencia, salvarPremissa } from "./metas/servico.js";
-import { assinaturaValida, extrairMensagensTexto } from "./whatsapp/webhook.js";
+import {
+  NATUREZAS, alterarLancamento, atualizarMeta, calendarioMensal, capacidadePoupanca, cenariosDaMeta, criarMeta, hashLote, importarItens,
+  lerCsv, lerComprovante, lerFaturaOcr, lerFaturaTexto, lerOfx, lerPremissas, listarLancamentos, listarMetas, mapaCalor, paraLocal,
+  processarMensagem, registrarLancamento, removerMeta, reservaDeEmergencia, resumoMensal, salvarPremissa,
+  type Natureza, type Status,
+} from "../../core/src/index";
+import { abrirBanco, type Db } from "./db/db";
+import { detectarTipo, ocrArquivo, ocrDisponivel } from "./ocr/tesseract";
+import { assinaturaValida, extrairMensagensTexto } from "./whatsapp/webhook";
 
 export interface Config {
   apiToken: string;
