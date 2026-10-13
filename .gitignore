@@ -1,0 +1,13 @@
+node_modules/
+*.db
+*.db-journal
+*.sqlite
+.env
+.env.*
+# Dados financeiros reais nunca devem ser versionados
+dados-reais/
+*.ofx
+*.csv
+*.pdf
+!backend/test/fixtures/*.csv
+!backend/test/fixtures/*.ofx
