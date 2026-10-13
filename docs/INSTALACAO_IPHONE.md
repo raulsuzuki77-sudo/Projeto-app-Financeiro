@@ -71,7 +71,7 @@ Pelo que sei, o app instalado com Apple ID gratuito deixa de abrir após 7 dias.
 ## Parte 6. Se mudar o Bundle ID ou atualizar o projeto
 
 - Mudou o Bundle ID: rode de novo o script da Parte 2 com o novo identificador. **Atenção**: um Bundle ID diferente é outro aplicativo para o iOS, com banco de dados separado; exporte o backup antes e restaure no novo.
-- Baixou uma versão nova do código: `git pull`, depois rode o script de novo (ele reinstala as dependências e regenera o projeto) e faça Run no Xcode.
+- Baixou uma versão nova do código: `git pull`, depois rode o script de novo (ele reinstala as dependências e regenera o projeto) e faça Run no Xcode. **Atenção**: regenerar o projeto apaga as configurações feitas no Xcode. Depois de rodar o script, refaça na Parte 3 o passo 3 (escolher o Team) e o passo 6 (Build Configuration: Release). O Apple ID e o iPhone já cadastrados continuam valendo.
 
 ## Parte 7. Erros comuns e como pedir ajuda
 
@@ -86,6 +86,7 @@ Pelo que sei, o app instalado com Apple ID gratuito deixa de abrir após 7 dias.
 | Erro de CocoaPods | `cd app/ios && pod install --repo-update` e tente de novo |
 | Erro de compilação em `OcrNativoModule.swift` | Esse arquivo ainda não foi compilado por mim. Envie a mensagem completa (veja abaixo) |
 | O app abre e fecha na hora | Rode pelo Xcode (Cmd+R) com o iPhone conectado e copie o texto que aparecer na área de console, embaixo |
+| Console: `Application failed to launch: UIScene life cycle is required for apps built with this SDK` | O Xcode 27 exige o ciclo de vida por scenes, que o template do Expo SDK 57 ainda não traz. Corrigido pelo plugin `app/plugins/with-scene-lifecycle.js`: faça `git pull`, rode o script da Parte 2 de novo e refaça os passos de Team e Release da Parte 3 |
 | O app parou de abrir depois de uns dias | Parte 5 |
 | `No script URL provided` | Estava em Debug; use Release (Parte 3, passo 6) |
 

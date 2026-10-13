@@ -42,7 +42,8 @@
           "cameraPermission": "Permitir a camera para fotografar comprovantes de compra.",
           "photosPermission": "Permitir acesso as fotos para enviar comprovantes."
         }
-      ]
+      ],
+      "./plugins/with-scene-lifecycle"
     ]
   }
 }

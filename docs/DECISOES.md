@@ -115,3 +115,11 @@ Decisao do usuario, apos analise: o aplicativo guarda os dados e faz todos os ca
 - Instalacao sem custo: compilar com Xcode e Apple ID gratuito (ver `docs/INSTALACAO_IPHONE.md`); limitacao: renovar a cada 7 dias.
 
 Verificado: 50 testes do nucleo, 13 do servidor e 5 do app; tipos; geracao do projeto iOS (`expo prebuild`); autolinking do modulo nativo; compilacao do pacote JavaScript. NAO verificado: compilacao do Swift, execucao em aparelho, qualidade do Vision nas suas faturas.
+
+## 11. Falha ao abrir com Xcode 27: ciclo de vida por UIScene (13/10/2026)
+
+Sintoma (primeiro teste em aparelho, com Xcode recente e iPhone atual): o app instalava, mas fechava ao abrir. O console do Xcode mostrou: `Application failed to launch: UIScene life cycle is required for apps built with this SDK`. A Apple passou a exigir esse ciclo de vida para apps compilados com o SDK do iOS 27.
+
+Causa: o template de projeto do Expo SDK 57 (`expo-template-bare-minimum` 57.0.30) ainda nao adota scenes, embora o pacote `expo` 57.0.28 ja traga as classes nativas `ExpoAppSceneDelegate` e `ExpoReactNativeFactoryProvider`. O template do SDK 58 (58.0.18) adota.
+
+Correcao: plugin de configuracao local `app/plugins/with-scene-lifecycle.js`, registrado em `app.json`, que reproduz no projeto gerado a mesma alteracao do template do SDK 58: manifesto de scenes no Info.plist, `SceneDelegate.swift` incluido no alvo do Xcode e `AppDelegate` conformando com `ExpoReactNativeFactoryProvider` sem criar a janela. E idempotente e falha com mensagem clara se o template mudar. Verificado em Linux: o `expo prebuild` gera os tres ajustes, o projeto referencia o novo arquivo na mesma convencao dos demais e uma segunda execucao nao altera nada. NAO verificado: a compilacao e a execucao no aparelho (aguardando teste do usuario). Alternativa descartada: migrar todo o projeto para o SDK 58 (versao `next`), por risco maior.
