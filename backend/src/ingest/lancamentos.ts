@@ -33,6 +33,14 @@ function similaridade(a: string, b: string): number {
   return i / (A.size + B.size - i);
 }
 
+function motivoRevisao(n: NovoLancamento, confianca: number, temCandidato: boolean): string {
+  const m: string[] = [];
+  if (n.alerta_revisao) m.push(n.alerta_revisao);
+  if (temCandidato) m.push("valor igual a outro lancamento em data proxima (possivel duplicidade)");
+  if (confianca < LIMIAR_CONFIANCA) m.push("categoria nao reconhecida com seguranca");
+  return m.join("; ");
+}
+
 export function obterLancamento(db: Db, id: number): Lancamento | undefined {
   return db.prepare("SELECT * FROM lancamento WHERE id = ?").get(id) as Lancamento | undefined;
 }
@@ -89,14 +97,15 @@ export function registrarLancamento(db: Db, n: NovoLancamento): ResultadoRegistr
       .prepare(
         `INSERT INTO lancamento (usuario_id, tipo, valor_centavos, descricao, estabelecimento_norm, categoria, natureza,
            forma_pagamento, cartao_id, conta_id, parcela_atual, parcela_total, ocorrido_em, data_local, hora_local,
-           precisao_horario, status, confianca, hash_dedup, possivel_duplicado_de, criado_em, atualizado_em)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           precisao_horario, status, confianca, hash_dedup, possivel_duplicado_de, motivo_revisao, criado_em, atualizado_em)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         n.usuario_id, n.tipo, n.valor_centavos, n.descricao, descNorm, cls.categoria, natureza,
         n.forma_pagamento ?? null, n.cartao_id ?? null, n.conta_id ?? null, n.parcela_atual ?? null, n.parcela_total ?? null,
         paraInstanteUTC(n.data_local, n.hora_local ?? null), n.data_local, n.hora_local ?? null,
-        n.precisao_horario, status, cls.confianca, hash, candidatos[0]?.id ?? null, agora, agora,
+        n.precisao_horario, status, cls.confianca, hash, candidatos[0]?.id ?? null,
+        status === "pendente" ? motivoRevisao(n, cls.confianca, candidatos.length > 0) : null, agora, agora,
       );
     const id = Number(info.lastInsertRowid);
     gravarOrigem(id);
@@ -126,10 +135,11 @@ export function alterarLancamento(db: Db, id: number, usuarioId: string, alt: Al
         );
       }
     }
+    if (alt.status === "confirmado") db.prepare("UPDATE lancamento SET motivo_revisao = NULL WHERE id = ?").run(id);
     if (alt.categoria || alt.natureza) {
       aprenderRegra(db, usuarioId, atual.estabelecimento_norm, alt.categoria ?? atual.categoria, alt.natureza ?? atual.natureza);
       if (atual.status === "pendente" && !alt.status) {
-        db.prepare("UPDATE lancamento SET status = 'confirmado', confianca = 1, atualizado_em = ? WHERE id = ?").run(agora, id);
+        db.prepare("UPDATE lancamento SET status = 'confirmado', confianca = 1, motivo_revisao = NULL, atualizado_em = ? WHERE id = ?").run(agora, id);
       }
     }
   });

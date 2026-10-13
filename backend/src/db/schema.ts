@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS lancamento (
   confianca REAL NOT NULL,
   hash_dedup TEXT NOT NULL,
   possivel_duplicado_de INTEGER REFERENCES lancamento(id),
+  motivo_revisao TEXT,
   criado_em TEXT NOT NULL,
   atualizado_em TEXT NOT NULL
 );

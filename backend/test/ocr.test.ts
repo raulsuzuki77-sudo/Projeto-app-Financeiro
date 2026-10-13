@@ -84,6 +84,8 @@ test("API: foto de comprovante vira lancamento pendente; arquivo invalido e recu
   const l = db.prepare("SELECT * FROM lancamento").get() as { valor_centavos: number; status: string; data_local: string; hora_local: number };
   assert.equal(l.valor_centavos, 3740);
   assert.equal(l.status, "pendente"); // foto sempre exige confirmacao
+  const mot = db.prepare("SELECT motivo_revisao m FROM lancamento").get() as { m: string };
+  assert.match(mot.m, /foto: confirme/);
   assert.equal(l.data_local, "2026-10-12");
   const again = await app.inject({ method: "POST", url: "/api/importacoes-arquivo?tipo=comprovante", headers: { ...H, "content-type": "image/png" }, payload: bin("comprovante-sintetico.png") });
   assert.equal(again.json().resultado, "ja_processado");

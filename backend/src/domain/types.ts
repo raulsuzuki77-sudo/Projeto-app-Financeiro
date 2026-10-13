@@ -46,6 +46,7 @@ export interface Lancamento {
   confianca: number;
   hash_dedup: string;
   possivel_duplicado_de: number | null;
+  motivo_revisao: string | null;
   criado_em: string;
   atualizado_em: string;
 }

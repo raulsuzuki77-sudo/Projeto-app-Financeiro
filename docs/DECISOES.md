@@ -64,3 +64,19 @@ Dependências do sistema para o OCR: `tesseract-ocr`, `tesseract-ocr-por` e `pop
 ## 6. Número do WhatsApp informado pelo usuário
 
 O usuário solicitou usar o número pessoal terminado em 6494. Por ser dado pessoal, o número não é gravado no repositório: é configurado em `WHATSAPP_NUMERO_AUTORIZADO` (formato da Cloud API: código do país + DDD + número, sem símbolos). Efeito: apenas mensagens vindas desse número são processadas; as demais são descartadas. Isso NÃO resolve a limitação do item 1: a Cloud API recebe mensagens enviadas a um número de empresa registrado, e não lê o chat "mensagens para você" do número pessoal. Assim, com a API oficial, o fluxo será o usuário escrever do número pessoal para o número do bot.
+
+## 7. Aplicativo iPhone (implementado em 13/10/2026)
+
+Pasta `app/`: Expo SDK 57, React Native, TypeScript, Expo Router. Cinco abas: Lancar, Revisar, Painel, Gastos e Ajustes.
+
+- Lancar: texto livre ("mercado 187,40 credito nomad"), foto de comprovante pela camera ou galeria, importacao de fatura (PDF ou foto). O resultado da fatura informa se a soma confere com o total declarado.
+- Revisar: lista os pendentes com o motivo (ex.: "data fora da ordem cronologica", "confianca do OCR baixa"), permite confirmar, corrigir a categoria (a correcao e aprendida) ou excluir.
+- Painel: receitas, despesas, investimentos, saldo, taxa de poupanca, despesas por categoria e por natureza.
+- Gastos: calendario do mes por intensidade de gasto e mapa de calor (dia da semana x faixa horaria), com a quantidade de gastos sem horario confiavel que ficaram de fora.
+- Ajustes: endereco do servidor e token, guardados no Chaveiro do iPhone (expo-secure-store). O aplicativo recusa http fora da rede local.
+
+Mudanca no backend para suportar a revisao: coluna `motivo_revisao` (com migracao automatica de bancos antigos).
+
+Verificado: typecheck, 3 testes de logica do aplicativo, 27 testes do backend e `expo export --platform ios` (bundle Hermes gerado). Nao verificado: execucao em aparelho ou simulador, aparencia real das telas, camera e seletor de arquivos. A documentacao oficial do Expo (docs.expo.dev) nao estava acessivel a partir deste ambiente; as APIs usadas foram conferidas nas definicoes de tipos dos pacotes instalados no SDK 57. Dependencias foram instaladas com versoes do `bundledNativeModules.json` do proprio SDK, porque o comando `expo install` falhou por restricao de rede.
+
+Pendente: canal de WhatsApp em producao (credenciais da Meta), notificacoes, modo offline, metas e cenarios, Open Finance.
