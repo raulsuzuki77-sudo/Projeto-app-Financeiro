@@ -78,6 +78,43 @@ export interface MapaCalor {
   excluidos_sem_horario: number;
 }
 
+export interface Meta {
+  id: number;
+  nome: string;
+  tipo: string;
+  valor_alvo_centavos: number;
+  aporte_inicial_centavos: number;
+  prazo_meses: number;
+}
+
+export interface CenarioMeta {
+  cenario: "conservador" | "moderado" | "arrojado";
+  retorno_nominal_aa: number;
+  taxa_real_aa: number;
+  aporte_mensal_necessario_centavos: number;
+  total_aportado_centavos: number;
+  ir_estimado_centavos: number;
+  valor_alvo_nominal_centavos: number;
+  atingida_sem_aportes: boolean;
+  prazo_com_aporte_meses?: number | null;
+}
+
+export interface CenariosDaMeta {
+  meta: Meta;
+  ipca_aa: number;
+  cenarios: CenarioMeta[];
+  premissas_padrao: boolean;
+  aviso: string;
+}
+
+export interface Reserva {
+  media_mensal_centavos: number;
+  meses_cobertura: number;
+  valor_alvo_centavos: number;
+  meses_sem_dados: string[];
+  observacao: string;
+}
+
 export const api = {
   testar: (c: Conexao) => chamar<{ ok: boolean }>("/health", {}, 8000, c),
   enviarMensagem: (texto: string) =>
@@ -88,6 +125,12 @@ export const api = {
   resumo: (mes: string) => chamar<ResumoMensal>(`/api/dashboard/resumo?mes=${mes}`),
   mapaCalor: (de: string, ate: string) => chamar<MapaCalor>(`/api/dashboard/mapa-calor?de=${de}&ate=${ate}`),
   calendario: (mes: string) => chamar<{ data: string; total_centavos: number; quantidade: number }[]>(`/api/dashboard/calendario?mes=${mes}`),
+  metas: () => chamar<Meta[]>("/api/metas"),
+  criarMeta: (m: Omit<Meta, "id">) => chamar<{ id: number }>("/api/metas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(m) }),
+  removerMeta: (id: number) => chamar<{ ok: boolean }>(`/api/metas/${id}`, { method: "DELETE" }),
+  cenarios: (id: number, aporteCentavos?: number) => chamar<CenariosDaMeta>(`/api/metas/${id}/cenarios${aporteCentavos !== undefined ? `?aporte_mensal_centavos=${aporteCentavos}` : ""}`),
+  reserva: (meses: number) => chamar<Reserva>(`/api/reserva-emergencia?meses=${meses}`),
+  poupanca: () => chamar<{ sobra_media_mensal_centavos: number; observacao: string }>("/api/capacidade-poupanca"),
   enviarArquivo: async (uri: string, mime: "application/pdf" | "image/png" | "image/jpeg", tipo: "fatura" | "comprovante") => {
     const blob = await (await fetch(uri)).blob();
     return chamar<Record<string, unknown>>(`/api/importacoes-arquivo?tipo=${tipo}`, { method: "POST", headers: { "content-type": mime }, body: blob }, 180_000);

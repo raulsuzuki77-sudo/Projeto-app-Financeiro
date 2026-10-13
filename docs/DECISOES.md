@@ -80,3 +80,21 @@ Mudanca no backend para suportar a revisao: coluna `motivo_revisao` (com migraca
 Verificado: typecheck, 3 testes de logica do aplicativo, 27 testes do backend e `expo export --platform ios` (bundle Hermes gerado). Nao verificado: execucao em aparelho ou simulador, aparencia real das telas, camera e seletor de arquivos. A documentacao oficial do Expo (docs.expo.dev) nao estava acessivel a partir deste ambiente; as APIs usadas foram conferidas nas definicoes de tipos dos pacotes instalados no SDK 57. Dependencias foram instaladas com versoes do `bundledNativeModules.json` do proprio SDK, porque o comando `expo install` falhou por restricao de rede.
 
 Pendente: canal de WhatsApp em producao (credenciais da Meta), notificacoes, modo offline, metas e cenarios, Open Finance.
+
+## 8. T3 Metas e cenarios (implementado em 13/10/2026)
+
+Motor de calculo em `backend/src/metas/calculos.ts` (funcoes puras) e servico/API em `servico.ts`. Tela "Metas" no aplicativo.
+
+- Reserva de emergencia: meses de cobertura (padrao 6) x despesa essencial mensal media, calculada dos ULTIMOS 3 MESES FECHADOS, usando apenas lancamentos confirmados de natureza fixa, recorrente variavel, parcelada e custos financeiros. Os meses sem dados sao informados, porque a estimativa fica subestimada quando ha pendentes.
+- Capacidade de poupanca: media de (receitas - despesas) confirmadas nos ultimos 3 meses fechados.
+- Metas: tipo (reserva, curto, medio, longo prazo), valor em moeda de hoje, prazo em meses, valor inicial. O aporte mensal necessario e calculado por formula fechada, liquido de IR, com a meta corrigida pelo IPCA informado. Tambem calcula em quantos meses a meta seria atingida com a sobra media atual do usuario.
+- Cenarios conservador, moderado e arrojado com retorno nominal anual e regra de IR editaveis.
+- Verificacao: 10 testes dos calculos contra valores de tabela conferidos a mao (por exemplo, 1.000 por mes durante 12 meses a 1% ao mes = 12.682,50), mais testes de consistencia (o aporte calculado reproduz a meta; aporte e prazo sao inversos) e 3 testes de API.
+
+Premissas e limites que o usuario deve conhecer:
+
+- Os retornos iniciais (8%, 10% e 12% ao ano) e o IPCA (4,5%) sao VALORES ILUSTRATIVOS escolhidos para exemplo. Nao sao as taxas atuais de mercado nem projecao. Enquanto o usuario nao os editar, a API e o aplicativo exibem aviso. Nao foi feita consulta a series oficiais do Banco Central; isso pode ser automatizado depois.
+- Retorno constante e aportes no fim do mes. Monte Carlo nao foi implementado.
+- IR: na renda fixa usa a tabela regressiva (22,5%, 20%, 17,5%, 15%) pela duracao total, aplicada a todos os aportes, o que superestima o imposto (resultado conservador). Come-cotas, IOF e isencoes nao sao modelados. Confirmar a regra vigente com fonte oficial antes de usar para decisao.
+- O resultado e simulacao educacional, nao recomendacao individualizada de investimento (aviso exibido junto de cada simulacao).
+- A tela ainda nao permite editar as premissas (apenas a API `PUT /api/premissas`).

@@ -18,6 +18,7 @@ export default function LayoutRaiz() {
       <Tabs.Screen name="index" options={{ title: "Lancar", tabBarLabel: "Lancar" }} />
       <Tabs.Screen name="pendentes" options={{ title: "Revisar", tabBarLabel: "Revisar" }} />
       <Tabs.Screen name="painel" options={{ title: "Painel", tabBarLabel: "Painel" }} />
+      <Tabs.Screen name="metas" options={{ title: "Metas", tabBarLabel: "Metas" }} />
       <Tabs.Screen name="calendario" options={{ title: "Calendario", tabBarLabel: "Gastos" }} />
       <Tabs.Screen name="ajustes" options={{ title: "Ajustes", tabBarLabel: "Ajustes" }} />
     </Tabs>

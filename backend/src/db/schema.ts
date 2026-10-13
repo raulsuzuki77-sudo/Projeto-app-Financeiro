@@ -76,6 +76,29 @@ CREATE TABLE IF NOT EXISTS mensagem_processada (
   processada_em TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('reserva_emergencia','curto_prazo','medio_prazo','longo_prazo')),
+  valor_alvo_centavos INTEGER NOT NULL CHECK (valor_alvo_centavos > 0),
+  aporte_inicial_centavos INTEGER NOT NULL DEFAULT 0 CHECK (aporte_inicial_centavos >= 0),
+  prazo_meses INTEGER NOT NULL CHECK (prazo_meses BETWEEN 1 AND 1200),
+  ativa INTEGER NOT NULL DEFAULT 1,
+  criada_em TEXT NOT NULL
+);
+
+-- Premissas editaveis pelo usuario. Nao sao previsoes nem recomendacoes.
+CREATE TABLE IF NOT EXISTS premissa (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  chave TEXT NOT NULL,
+  retorno_nominal_aa REAL NOT NULL,
+  ir_modo TEXT NOT NULL DEFAULT 'regressivo',
+  ir_aliquota REAL,
+  atualizada_em TEXT NOT NULL,
+  PRIMARY KEY (usuario_id, chave)
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
   id INTEGER PRIMARY KEY,
   lancamento_id INTEGER NOT NULL,

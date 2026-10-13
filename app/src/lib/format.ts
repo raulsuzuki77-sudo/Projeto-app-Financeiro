@@ -49,3 +49,11 @@ export function urlServidorValida(url: string): { ok: true; url: string } | { ok
   const local = h === "localhost" || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || h.endsWith(".local");
   return local ? { ok: true, url: u.origin } : { ok: false, motivo: "Fora da rede local, o servidor deve usar https para proteger seus dados financeiros." };
 }
+
+/** Converte "1.234,56", "1234,5" ou "1234" (reais) em centavos; null se invalido. */
+export function reaisParaCentavos(texto: string): number | null {
+  const t = texto.trim().replace(/^R\$\s*/i, "");
+  if (!/^(\d{1,3}(\.\d{3})+|\d+)(,\d{1,2})?$/.test(t)) return null;
+  const n = Number(t.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}

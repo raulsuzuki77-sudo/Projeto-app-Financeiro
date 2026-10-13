@@ -27,6 +27,6 @@ Critério: valor entregue ao usuário por unidade de risco. Hoje o backend e o a
 5. Commit pequeno e descritivo, publicação na branch de desenvolvimento, documentação atualizada em `docs/DECISOES.md`.
 6. Uma tarefa só é dada como concluída com os critérios de aceite atendidos; o que sobrar vira nova tarefa.
 
-## Estado
+## Estado (atualizado)
 
-T1 concluída. T2 em andamento: artefatos prontos (Dockerfile, compose, Caddy, backup cifrado testado, guia); falta a decisão de hospedagem e a validação em servidor real. Próxima a executar sem depender de decisões: T3.
+T1 concluída. T2: artefatos prontos e testados no que foi possível; falta a decisão de hospedagem e a validação em servidor real (a imagem Docker não pôde ser construída neste ambiente). T3: motor, API e tela concluídos e testados; falta a tela de edição das premissas e a atualização das taxas com fonte oficial. Próxima a executar: T4 (orçamento e alertas).

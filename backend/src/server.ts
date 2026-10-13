@@ -14,6 +14,7 @@ import { lerFaturaOcr } from "./importers/fatura-texto.js";
 import { lerComprovante } from "./importers/comprovante.js";
 import { registrarLancamento } from "./ingest/lancamentos.js";
 import { paraLocal } from "./parsing/tempo.js";
+import { capacidadePoupanca, cenariosDaMeta, criarMeta, lerPremissas, listarMetas, removerMeta, reservaDeEmergencia, salvarPremissa } from "./metas/servico.js";
 import { assinaturaValida, extrairMensagensTexto } from "./whatsapp/webhook.js";
 
 export interface Config {
@@ -180,6 +181,40 @@ export function criarServidor(db: Db, cfg: Config): FastifyInstance {
       });
       return { resultado: reg.resultado, dados_lidos: d, alerta };
     });
+
+    // --- Metas e cenarios (simulacao educacional) ---
+    const erro400 = (reply: { code: (n: number) => { send: (b: unknown) => unknown } }, e: unknown) => reply.code(400).send({ erro: e instanceof Error ? e.message : "requisicao invalida" });
+    api.get("/api/premissas", async () => lerPremissas(db, cfg.usuarioId));
+    api.put("/api/premissas", async (req, reply) => {
+      try {
+        salvarPremissa(db, cfg.usuarioId, (req.body ?? {}) as { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null });
+        return lerPremissas(db, cfg.usuarioId);
+      } catch (e) { return erro400(reply, e); }
+    });
+    api.get("/api/metas", async () => listarMetas(db, cfg.usuarioId));
+    api.post("/api/metas", async (req, reply) => {
+      try {
+        const b = (req.body ?? {}) as Parameters<typeof criarMeta>[2];
+        const id = criarMeta(db, cfg.usuarioId, { nome: String(b.nome ?? ""), tipo: b.tipo, valor_alvo_centavos: b.valor_alvo_centavos, aporte_inicial_centavos: b.aporte_inicial_centavos ?? 0, prazo_meses: b.prazo_meses });
+        return reply.code(201).send({ id });
+      } catch (e) { return erro400(reply, e); }
+    });
+    api.delete("/api/metas/:id", async (req, reply) => {
+      return removerMeta(db, cfg.usuarioId, Number((req.params as { id: string }).id)) ? { ok: true } : reply.code(404).send({ erro: "meta nao encontrada" });
+    });
+    api.get("/api/metas/:id/cenarios", async (req, reply) => {
+      const id = Number((req.params as { id: string }).id);
+      const meta = listarMetas(db, cfg.usuarioId).find((m) => m.id === id);
+      if (!meta) return reply.code(404).send({ erro: "meta nao encontrada" });
+      const q = (req.query as { aporte_mensal_centavos?: string }).aporte_mensal_centavos;
+      const aporte = q === undefined ? undefined : Number(q);
+      if (aporte !== undefined && (!Number.isInteger(aporte) || aporte < 0)) return reply.code(400).send({ erro: "aporte_mensal_centavos invalido" });
+      return cenariosDaMeta(db, cfg.usuarioId, meta, aporte);
+    });
+    api.get("/api/reserva-emergencia", async (req, reply) => {
+      try { return reservaDeEmergencia(db, cfg.usuarioId, Number((req.query as { meses?: string }).meses ?? 6)); } catch (e) { return erro400(reply, e); }
+    });
+    api.get("/api/capacidade-poupanca", async () => capacidadePoupanca(db, cfg.usuarioId));
 
     api.get("/api/dashboard/resumo", async (req, reply) => {
       const mes = (req.query as { mes?: string }).mes;
