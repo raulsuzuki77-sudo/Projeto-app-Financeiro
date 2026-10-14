@@ -1,6 +1,6 @@
 import type { Db } from "./tipos";
 
-export const VERSAO_SCHEMA = 4;
+export const VERSAO_SCHEMA = 6;
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conta (
@@ -82,6 +82,28 @@ CREATE TABLE IF NOT EXISTS lancamento (
 );
 CREATE INDEX IF NOT EXISTS idx_lanc_data ON lancamento(usuario_id, data_local);
 CREATE INDEX IF NOT EXISTS idx_lanc_hash ON lancamento(usuario_id, hash_dedup);
+
+-- Arquivos importados (fatura, extrato, comprovante). O hash do conteudo impede importar o mesmo arquivo duas vezes; cada origem de
+-- lancamento aponta para o documento, o que permite excluir ou mover o arquivo inteiro.
+CREATE TABLE IF NOT EXISTS documento (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  tipo TEXT NOT NULL,
+  formato TEXT,
+  nome TEXT NOT NULL,
+  hash_arquivo TEXT,
+  cartao_id INTEGER REFERENCES cartao(id),
+  periodo_inicio TEXT,
+  periodo_fim TEXT,
+  lidos INTEGER NOT NULL DEFAULT 0,
+  criados INTEGER NOT NULL DEFAULT 0,
+  mesclados INTEGER NOT NULL DEFAULT 0,
+  ja_processados INTEGER NOT NULL DEFAULT 0,
+  origem TEXT NOT NULL DEFAULT 'manual',
+  versao_de INTEGER,
+  importado_em TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documento_hash ON documento(usuario_id, hash_arquivo) WHERE hash_arquivo IS NOT NULL;
 
 -- Rastreabilidade: toda origem que gerou ou confirmou o lancamento. UNIQUE = idempotencia.
 CREATE TABLE IF NOT EXISTS lancamento_origem (
@@ -234,9 +256,46 @@ export function prepararBanco(db: Db): void {
   if (!col("meta").includes("perfil")) db.exec("ALTER TABLE meta ADD COLUMN perfil TEXT NOT NULL DEFAULT 'moderado'");
   if (!col("lancamento").includes("motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
   if (!col("lancamento").includes("evento_id")) db.exec("ALTER TABLE lancamento ADD COLUMN evento_id INTEGER REFERENCES evento(id)");
+  if (!col("lancamento_origem").includes("documento_id")) db.exec("ALTER TABLE lancamento_origem ADD COLUMN documento_id INTEGER");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_origem_documento ON lancamento_origem(documento_id)");
   repararCategoriasIncoerentes(db);
   repararSemCategoriaConfirmada(db);
   migrarCaixinhasParaMeta(db);
+  agruparOrigensLegadas(db);
+}
+
+/**
+ * Importacoes feitas antes do registro de documentos nao sabem de qual arquivo vieram. Para poder ajusta-las, as origens de arquivo
+ * (CSV, PDF, OFX, foto) sem documento sao agrupadas em documentos "anteriores" por tipo de origem, cartao e mes. Idempotente.
+ */
+export function agruparOrigensLegadas(db: Db): number {
+  const linhas = db
+    .prepare(
+      `SELECT o.id oid, o.origem, l.usuario_id, l.cartao_id, substr(l.data_local,1,7) mes, c.apelido
+       FROM lancamento_origem o JOIN lancamento l ON l.id = o.lancamento_id LEFT JOIN cartao c ON c.id = l.cartao_id
+       WHERE o.documento_id IS NULL AND o.origem IN ('csv','pdf','ofx','fatura_texto','foto')`,
+    )
+    .all() as { oid: number; origem: string; usuario_id: string; cartao_id: number | null; mes: string; apelido: string | null }[];
+  if (linhas.length === 0) return 0;
+  const agora = new Date().toISOString();
+  const ids = new Map<string, number>();
+  const tx = db.transaction(() => {
+    for (const r of linhas) {
+      const chave = `${r.usuario_id}|${r.origem}|${r.cartao_id ?? 0}|${r.mes}`;
+      let id = ids.get(chave);
+      if (id === undefined) {
+        const rotulo = r.origem === "csv" ? "CSV" : r.origem === "pdf" ? "PDF" : r.origem === "ofx" ? "OFX" : r.origem === "foto" ? "Foto" : "Texto";
+        const info = db
+          .prepare("INSERT INTO documento (usuario_id, tipo, formato, nome, cartao_id, periodo_inicio, periodo_fim, origem, importado_em) VALUES (?,?,?,?,?,?,?,?,?)")
+          .run(r.usuario_id, "legado", r.origem, `Importações anteriores (${rotulo}${r.apelido ? `, cartão ${r.apelido}` : ", conta"}, ${r.mes})`, r.cartao_id, `${r.mes}-01`, `${r.mes}-28`, "manual", agora);
+        id = Number(info.lastInsertRowid);
+        ids.set(chave, id);
+      }
+      db.prepare("UPDATE lancamento_origem SET documento_id = ? WHERE id = ?").run(id, r.oid);
+    }
+  });
+  tx();
+  return linhas.length;
 }
 
 /**

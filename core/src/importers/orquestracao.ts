@@ -13,6 +13,8 @@ export interface ContextoImportacaoArquivo {
   cartao_id?: number | null;
   conta_id?: number | null;
   agora?: Date;
+  /** Documento (arquivo) registrado para esta importação: as origens gravadas apontam para ele. */
+  documento_id?: number | null;
 }
 
 export type ResultadoImportacaoFatura =
@@ -36,6 +38,7 @@ export function importarFatura(db: Db, linhas: { texto: string; confianca?: numb
     conta_id: ctx.conta_id ?? null,
     positivoEhDespesa: true,
     forcarRevisao: divergente ? "soma dos itens nao fecha com o total da fatura" : undefined,
+    documento_id: ctx.documento_id ?? null,
   });
   return { ok: true, relatorio, conciliacao: r.conciliacao, nao_lidas: r.nao_lidas };
 }
@@ -64,6 +67,7 @@ export function importarComprovante(db: Db, linhas: string[], identificador: str
     origem: "foto",
     referencia: d.id_transacao ? `pix:${d.id_transacao}` : identificador,
     alerta_revisao: alerta,
+    documento_id: ctx.documento_id ?? null,
   });
   return { ok: true, resultado: reg.resultado, dados_lidos: d, alerta };
 }
@@ -77,7 +81,7 @@ export type ResultadoTexto =
 /** Importa arquivo de texto: OFX, CSV com cabecalho ou texto de fatura. */
 export function importarTexto(db: Db, formato: FormatoTexto, conteudo: string, ctx: ContextoImportacaoArquivo): ResultadoTexto {
   const lote = hashLote(conteudo);
-  const base = { usuario_id: ctx.usuario_id, lote, cartao_id: ctx.cartao_id ?? null, conta_id: ctx.conta_id ?? null };
+  const base = { usuario_id: ctx.usuario_id, lote, cartao_id: ctx.cartao_id ?? null, conta_id: ctx.conta_id ?? null, documento_id: ctx.documento_id ?? null };
   if (formato === "ofx") {
     const itens = lerOfx(conteudo);
     if (itens.length === 0) return { ok: false, erro: "nenhuma transacao encontrada no OFX" };

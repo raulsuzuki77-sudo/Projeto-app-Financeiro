@@ -34,3 +34,4 @@ export * from "./orcamento/orcamento";
 export * from "./investimentos/tipos";
 export * from "./investimentos/leitor";
 export * from "./investimentos/servico";
+export * from "./documentos/documentos";

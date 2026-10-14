@@ -35,6 +35,8 @@ export interface ContextoImportacao {
   positivoEhDespesa?: boolean;
   /** Força todos os itens do lote como pendentes (ex.: soma não fecha com o total da fatura). */
   forcarRevisao?: string;
+  /** Documento (arquivo) registrado para esta importação. */
+  documento_id?: number | null;
 }
 
 const RE_PGTO_FATURA = /pagamento de fatura|pagamento fatura|pgto fatura|pagto fatura|pagamento recebido|pag fatura/i;
@@ -97,6 +99,7 @@ export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImpor
       texto_bruto: it.texto_bruto ?? it.descricao,
       alerta_revisao: alertaItem,
       estorno: it.estorno,
+      documento_id: ctx.documento_id ?? null,
     }, { ignorarIds: doLote });
     if (r.resultado === "criado") doLote.add(r.lancamento.id);
     if (alertaItem && r.resultado === "criado") rel.alertas.push({ descricao: it.descricao, data_local: it.data_local, motivo: alertaItem });

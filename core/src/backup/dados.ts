@@ -1,8 +1,8 @@
 import type { Db } from "../db/tipos";
-import { VERSAO_SCHEMA } from "../db/schema";
+import { VERSAO_SCHEMA, agruparOrigensLegadas } from "../db/schema";
 
 /** Tabelas na ordem segura para inserir (pais antes de filhos). Restaurar apaga na ordem inversa. */
-export const TABELAS = ["conta", "cartao", "recorrencia", "evento", "lancamento", "lancamento_origem", "regra_classificacao", "mensagem_processada", "auditoria", "meta", "premissa", "classe_categoria", "orcamento", "recorrente_ignorada", "extrato_investimento", "posicao_investimento", "movimento_investimento", "cambio"] as const;
+export const TABELAS = ["conta", "cartao", "recorrencia", "evento", "documento", "lancamento", "lancamento_origem", "regra_classificacao", "mensagem_processada", "auditoria", "meta", "premissa", "classe_categoria", "orcamento", "recorrente_ignorada", "extrato_investimento", "posicao_investimento", "movimento_investimento", "cambio"] as const;
 
 export interface DumpDados {
   versao_schema: number;
@@ -49,5 +49,6 @@ export function restaurarDados(db: Db, dump: DumpDados): { linhas: number } {
     }
   });
   executar();
+  agruparOrigensLegadas(db);
   return { linhas: total };
 }

@@ -25,6 +25,11 @@ function hashDe(usuario: string, tipo: string, valor: number, data: string, ref:
   return sha256Hex([usuario, tipo, valor, data, ref, descNorm, parcela].join("|"));
 }
 
+/** Chave de duplicidade de um lançamento já gravado (muda quando a data ou o valor mudam). */
+export function hashDeLancamento(l: Pick<Lancamento, "usuario_id" | "tipo" | "valor_centavos" | "data_local" | "cartao_id" | "conta_id" | "estabelecimento_norm" | "parcela_atual">): string {
+  return hashDe(l.usuario_id, l.tipo, l.valor_centavos, l.data_local, l.cartao_id ?? l.conta_id ?? 0, l.estabelecimento_norm, l.parcela_atual ?? 0);
+}
+
 function hashDedup(n: NovoLancamento, descNorm: string): string {
   return hashDe(n.usuario_id, n.tipo, n.valor_centavos, n.data_local, n.cartao_id ?? n.conta_id ?? 0, descNorm, n.parcela_atual ?? 0);
 }
@@ -75,8 +80,8 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
 
   const gravarOrigem = (id: number) =>
     db
-      .prepare("INSERT INTO lancamento_origem (lancamento_id, origem, referencia, texto_bruto, criado_em) VALUES (?, ?, ?, ?, ?)")
-      .run(id, n.origem, n.referencia, n.texto_bruto ?? null, agora);
+      .prepare("INSERT INTO lancamento_origem (lancamento_id, origem, referencia, texto_bruto, criado_em, documento_id) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(id, n.origem, n.referencia, n.texto_bruto ?? null, agora, n.documento_id ?? null);
 
   const tx = db.transaction((): ResultadoRegistro => {
     // Itens do mesmo arquivo (`ignorarIds`) nunca se mesclam entre si: duas compras identicas no mesmo dia sao dois lancamentos.

@@ -82,4 +82,6 @@ export interface NovoLancamento {
   estorno?: boolean;
   /** Valor de cada parcela (índice 0 = parcela 1), quando as parcelas não são todas iguais (compra parcelada digitada). */
   valores_parcelas?: number[];
+  /** Documento importado (arquivo) de onde vem o lançamento; a origem gravada aponta para ele, para excluir ou mover o arquivo inteiro. */
+  documento_id?: number | null;
 }
