@@ -118,7 +118,7 @@ export const api = {
   /** Quantos lançamentos aguardam revisão (parcelas futuras previstas não contam; os sem categoria contam sempre). */
   contarPendentes: async () => (listarParaRevisao(obterBanco(), USUARIO, { ate: hoje(), limite: 2000 }) as unknown[]).length,
   /** Lançamentos da revisão: pendentes até hoje e todos os sem categoria. */
-  revisao: async (ordem?: FiltroLancamentos["ordem"]) => listarParaRevisao(obterBanco(), USUARIO, { ate: hoje(), ordem, limite: 600 }) as Lancamento[],
+  revisao: async (ordem?: FiltroLancamentos["ordem"]) => listarParaRevisao(obterBanco(), USUARIO, { ate: hoje(), ordem, limite: 300 }) as Lancamento[],
 
   /** Ações em lote do Extrato. Cada uma devolve o que foi alterado, para poder desfazer. */
   excluirVarios: async (ids: number[]) => excluirVarios(obterBanco(), USUARIO, ids),

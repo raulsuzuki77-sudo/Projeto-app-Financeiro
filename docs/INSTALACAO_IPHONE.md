@@ -60,6 +60,16 @@ Se der erro, copie a mensagem completa e me envie (veja a Parte 7).
 4. Lançar > Importar fatura (PDF ou foto), com a sua fatura real; leia a mensagem de conferência da soma.
 5. Lançar > Fotografar comprovante, com um cupom e com um comprovante de PIX.
 
+### Pasta de documentos e backup mensal (novo)
+
+1. No app **Arquivos** do iPhone, crie a pasta **00. Documentos financeiros** (em "Neste iPhone" ou no iCloud Drive).
+2. No aplicativo: menu (canto superior esquerdo) > **Pasta de documentos** > **Escolher a pasta** e selecione essa pasta. O aplicativo guarda a permissão; não é preciso repetir.
+3. Coloque faturas, extratos e informes na pasta. Ao abrir o aplicativo, ele importa o que ainda não foi importado (CSV, OFX e PDF). Um aviso na base da tela informa o que foi importado. O que ele não decide sozinho (PDF com senha desconhecida, fatura sem cartão identificado, extrato de investimentos que não confere) fica marcado como "Precisa de você" na mesma tela.
+4. Na mesma tela, defina a **senha dos backups automáticos** (mínimo de 10 caracteres, guardada no Chaveiro do iPhone; anote-a em lugar seguro, o aplicativo não a recupera) e toque em **Fazer o backup agora**. A subpasta **Backups mensais** passa a receber um arquivo cifrado por mês, atualizado uma vez por dia.
+5. Para recuperar depois de reinstalar o aplicativo: escolha de novo a pasta de documentos, abra a lista de backups da mesma tela, toque em **Restaurar este backup** e informe a senha.
+
+Este recurso usa um módulo nativo novo (`pasta-nativa`). Se o Xcode acusar erro de compilação nele, envie a mensagem completa.
+
 ## Parte 5. Rotina semanal: renovar a cada 7 dias
 
 Pelo que sei, o app instalado com Apple ID gratuito deixa de abrir após 7 dias. O ícone continua, mas o app fecha ao tocar. Para renovar (cerca de 2 minutos): conecte o iPhone, abra o `.xcworkspace` e clique em Run (Cmd+R) de novo. Instalar por cima preserva os dados.
@@ -108,4 +118,5 @@ Há uma versão do mesmo aplicativo que roda no navegador do computador, com ban
 O código foi escrito e testado em Linux, sem Xcode nem iPhone.
 
 - Verificado: tipos, 50 testes do núcleo, o adaptador do SQLite com simulação da API do expo-sqlite, a geração do projeto iOS (`expo prebuild`), o reconhecimento do módulo nativo, a compilação do pacote JavaScript e a instalação das dependências a partir de um clone limpo do repositório.
-- Não verificado: o script `preparar-mac.sh` em um Mac (só a sintaxe e a lógica de validação foram testadas em Linux), a compilação do Swift de OCR, a execução em aparelho (telas, câmera, Face ID, compartilhamento do backup), a qualidade do OCR do iOS nas suas faturas e a velocidade da cifragem em JavaScript.
+- Verificado pelo usuário no aparelho (14/10/2026): o script `preparar-mac.sh` num Mac, a compilação do Swift de OCR, a instalação e a abertura do aplicativo, as telas e a importação dos extratos.
+- Não verificado: o módulo nativo `pasta-nativa` (seletor de pasta, permissão persistente, leitura e gravação na pasta), a importação e o backup automáticos, a autenticação do aparelho ao zerar os dados, a leitura de PDF por posição do texto (extratos de investimento) e a velocidade da cifragem em JavaScript no backup mensal.
