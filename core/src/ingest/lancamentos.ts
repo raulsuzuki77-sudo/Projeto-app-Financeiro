@@ -5,6 +5,8 @@ import { aprenderRegra, chaveEstabelecimento, classificar, naturezaPara, tipoApo
 import { naturezaPadraoDaCategoria } from "../classification/categorias";
 import { normalizar } from "../parsing/text";
 import { dataValida, paraInstanteUTC, somarDias } from "../parsing/tempo";
+import { elegivelParaEvento, eventoDaData } from "../eventos/eventos";
+import { mesmoCompromisso } from "../recorrencias/casamento";
 
 export type ResultadoRegistro =
   | { resultado: "criado"; lancamento: Lancamento }
@@ -82,6 +84,27 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
       return { resultado: "mesclado", lancamento: obterLancamento(db, igual.id)! };
     }
 
+    // Compromisso previsto por recorrencia (ainda sem origem real): o lancamento real o substitui, contando uma unica vez.
+    if (n.origem !== "recorrente") {
+      const previstos = (db
+        .prepare(
+          `SELECT * FROM lancamento l WHERE l.usuario_id = ? AND l.tipo = ? AND l.status != 'cancelado' AND substr(l.data_local,1,7) = ?
+             AND EXISTS (SELECT 1 FROM lancamento_origem o WHERE o.lancamento_id = l.id AND o.origem = 'recorrente')
+             AND NOT EXISTS (SELECT 1 FROM lancamento_origem o2 WHERE o2.lancamento_id = l.id AND o2.origem != 'recorrente')`,
+        )
+        .all(n.usuario_id, n.tipo, n.data_local.slice(0, 7)) as Lancamento[]).filter((c) => !ign?.has(c.id));
+      const previsto = previstos.find((c) => mesmoCompromisso(c, { estabelecimento_norm: descNorm, valor_centavos: n.valor_centavos }));
+      if (previsto) {
+        gravarOrigem(previsto.id);
+        if (previsto.valor_centavos !== n.valor_centavos || previsto.data_local !== n.data_local) {
+          db.prepare("UPDATE lancamento SET valor_centavos = ?, data_local = ?, ocorrido_em = ?, hash_dedup = ?, atualizado_em = ? WHERE id = ?").run(
+            n.valor_centavos, n.data_local, paraInstanteUTC(n.data_local, n.hora_local ?? null), hashDe(n.usuario_id, previsto.tipo, n.valor_centavos, n.data_local, previsto.cartao_id ?? previsto.conta_id ?? 0, previsto.estabelecimento_norm, previsto.parcela_atual ?? 0), agora, previsto.id,
+          );
+        }
+        return { resultado: "mesclado", lancamento: obterLancamento(db, previsto.id)! };
+      }
+    }
+
     const candidatos = (db
       .prepare(
         `SELECT * FROM lancamento
@@ -107,15 +130,17 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
       .prepare(
         `INSERT INTO lancamento (usuario_id, tipo, valor_centavos, descricao, estabelecimento_norm, categoria, natureza,
            forma_pagamento, cartao_id, conta_id, parcela_atual, parcela_total, ocorrido_em, data_local, hora_local,
-           precisao_horario, status, confianca, hash_dedup, possivel_duplicado_de, motivo_revisao, criado_em, atualizado_em)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           precisao_horario, status, confianca, hash_dedup, possivel_duplicado_de, motivo_revisao, evento_id, criado_em, atualizado_em)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         n.usuario_id, tipoFinal, n.valor_centavos, n.descricao, descNorm, cls.categoria, natureza,
         n.forma_pagamento ?? null, n.cartao_id ?? null, n.conta_id ?? null, n.parcela_atual ?? null, n.parcela_total ?? null,
         paraInstanteUTC(n.data_local, n.hora_local ?? null), n.data_local, n.hora_local ?? null,
         n.precisao_horario, status, cls.confianca, hash, candidatos[0]?.id ?? null,
-        status === "pendente" ? motivoRevisao(n, cls.confianca, candidatos.length > 0) : null, agora, agora,
+        status === "pendente" ? motivoRevisao(n, cls.confianca, candidatos.length > 0) : null,
+        // Gasto dentro do periodo de um evento (viagem, ferias): vinculado desde a importacao
+        elegivelParaEvento(tipoFinal, natureza) ? eventoDaData(db, n.usuario_id, n.data_local) : null, agora, agora,
       );
     const id = Number(info.lastInsertRowid);
     gravarOrigem(id);
@@ -313,7 +338,9 @@ export function reaplicarRegrasAosPendentes(db: Db, usuarioId: string): number {
  */
 export function definirTitular(db: Db, usuarioId: string, nome: string): number {
   const n = nome.trim();
-  if (chaveEstabelecimento(`Pix enviado: ${n}`).length < 5) throw new Error("Informe o nome completo, como aparece nos extratos.");
+  if (normalizar(n).split(" ").length < 2 || normalizar(n).length < 8) throw new Error("Informe o nome completo, como aparece nos extratos.");
+  // Duas regras, uma por direcao: o usuario pode classificar diferente o que recebe de si mesmo (ex.: custo de vida vindo de outra conta).
   aprenderRegra(db, usuarioId, `Pix enviado: ${n}`, "transferencia", "transferencia");
+  aprenderRegra(db, usuarioId, `Pix recebido: ${n}`, "transferencia", "transferencia");
   return reaplicarRegrasAosPendentes(db, usuarioId);
 }

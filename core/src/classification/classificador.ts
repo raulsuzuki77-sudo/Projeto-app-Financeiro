@@ -39,6 +39,8 @@ const RUIDO = new Set(["br", "ltda", "sa", "me", "epp", "eireli", "com", "de", "
 
 /** Marcadores que a leitura de extratos coloca antes do nome ("Pix enviado: NOME", "Boleto: BENEFICIARIO"). Nao identificam o estabelecimento. */
 const MARCADORES = /^(pix enviado|pix recebido|boleto|transferencia enviada|transferencia recebida|desconto antecipacao|iof de volta de)\s+/;
+/** No Pix, a direcao faz parte da chave: quem recebe de uma pessoa nem sempre paga a ela pelo mesmo motivo. */
+const COM_DIRECAO = /^pix (enviado|recebido)$/;
 
 /**
  * Chave estável do estabelecimento: tira prefixos de intermediadores, números, códigos de loja, cidade/UF no fim
@@ -50,7 +52,8 @@ export function chaveEstabelecimento(descricao: string): string {
   const m = norm.match(MARCADORES);
   const toks = (m ? norm.slice(m[0].length) : norm).split(" ").filter(Boolean);
   const limpos = toks.filter((t) => !PREFIXOS.has(t) && !RUIDO.has(t) && !/\d/.test(t) && t.length > 1);
-  return limpos.slice(0, m ? 3 : 2).join(" ");
+  const nome = limpos.slice(0, m ? 3 : 2).join(" ");
+  return m && nome && COM_DIRECAO.test(m[1]!) ? `${m[1]!.split(" ")[1]} ${nome}` : nome;
 }
 
 function tokensDe(chave: string): Set<string> {

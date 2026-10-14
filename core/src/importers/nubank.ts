@@ -30,12 +30,18 @@ const limpar = (s: string) => s.replace(/\s+/g, " ").trim();
 const limitar = (s: string, n = 80) => (s.length > n ? s.slice(0, n).trim() : s);
 const RE_DOC = /^[•\d.\/*-]+$/;
 
-/** "Nome - 12.345.678/0001-90 - BANCO (0001) Agência: 1 Conta: 2" -> "Nome". O documento e o banco ficam só no texto bruto. */
-function nomeDoFavorecido(resto: string): string {
+/** Instituicoes onde se investe: um Pix enviado a elas e aporte, nao gasto nem transferencia neutra. */
+const CORRETORAS: [RegExp, string][] = [
+  [/\bBTG\b/i, "BTG"], [/\bXP\b/i, "XP"], [/\bRICO\b/i, "Rico"], [/\bGENIAL\b/i, "Genial"], [/\bWARREN\b/i, "Warren"],
+  [/\bCLEAR\b/i, "Clear"], [/\bORAMA\b/i, "Orama"], [/\bTORO\b/i, "Toro"], [/\bAGORA\b/i, "Agora"], [/\bAVENUE\b/i, "Avenue"],
+];
+
+/** "Nome - 12.345.678/0001-90 - BANCO (0001) Agência: 1 Conta: 2" -> nome e instituicao. O documento e a conta ficam só no texto bruto. */
+function favorecido(resto: string): { nome: string; instituicao: string } {
   const partes = resto.split(" - ").map(limpar);
   const doc = partes.findIndex((p, i) => i > 0 && RE_DOC.test(p));
   const nome = doc > 0 ? partes.slice(0, doc).join(" - ") : partes[0] ?? resto;
-  return limitar(nome);
+  return { nome: limitar(nome), instituicao: doc > 0 ? partes.slice(doc + 1).join(" - ") : "" };
 }
 
 export function interpretarConta(bruto: string): Interpretacao {
@@ -43,8 +49,12 @@ export function interpretarConta(bruto: string): Interpretacao {
   let m = t.match(/^(Estorno - )?Transfer[êe]ncia (enviada|recebida) pelo Pix - (.+)$/i);
   if (m) {
     const direcao = m[2]!.toLowerCase() === "enviada" ? "enviado" : "recebido";
+    const f = favorecido(m[3]!);
     // O estorno de um Pix enviado herda a descricao do envio: assim abate a despesa certa e herda a mesma classificacao.
-    return { descricao: `Pix ${m[1] ? "enviado" : direcao}: ${nomeDoFavorecido(m[3]!)}`, forma_pagamento: "pix", estorno: Boolean(m[1]) };
+    const enviado = Boolean(m[1]) || direcao === "enviado";
+    const corretora = enviado ? CORRETORAS.find(([re]) => re.test(f.instituicao)) : undefined;
+    const nome = corretora ? `Corretora ${corretora[1]} (${f.nome})` : f.nome;
+    return { descricao: `Pix ${enviado ? "enviado" : "recebido"}: ${nome}`, forma_pagamento: "pix", estorno: Boolean(m[1]) };
   }
   m = t.match(/^(Estorno - )?Pagamento de boleto efetuado - (.+)$/i);
   if (m) return { descricao: `Boleto: ${limitar(m[2]!)}`, forma_pagamento: "boleto", estorno: Boolean(m[1]) };

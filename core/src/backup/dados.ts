@@ -2,7 +2,7 @@ import type { Db } from "../db/tipos";
 import { VERSAO_SCHEMA } from "../db/schema";
 
 /** Tabelas na ordem segura para inserir (pais antes de filhos). Restaurar apaga na ordem inversa. */
-export const TABELAS = ["conta", "cartao", "recorrencia", "lancamento", "lancamento_origem", "regra_classificacao", "mensagem_processada", "auditoria", "meta", "premissa"] as const;
+export const TABELAS = ["conta", "cartao", "recorrencia", "evento", "lancamento", "lancamento_origem", "regra_classificacao", "mensagem_processada", "auditoria", "meta", "premissa", "classe_categoria", "orcamento"] as const;
 
 export interface DumpDados {
   versao_schema: number;

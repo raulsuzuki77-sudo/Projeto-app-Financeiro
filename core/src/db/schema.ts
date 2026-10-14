@@ -1,6 +1,6 @@
 import type { Db } from "./tipos";
 
-export const VERSAO_SCHEMA = 2;
+export const VERSAO_SCHEMA = 3;
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conta (
@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS recorrencia (
   criada_em TEXT NOT NULL
 );
 
+-- Viagens e outros eventos (ferias, viagem a servico): segunda classificacao dos gastos do periodo, alem da categoria.
+CREATE TABLE IF NOT EXISTS evento (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('ferias','viagem_servico','outro')),
+  data_inicio TEXT NOT NULL,
+  data_fim TEXT NOT NULL,
+  criado_em TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS lancamento (
   id INTEGER PRIMARY KEY,
   usuario_id TEXT NOT NULL DEFAULT 'local',
@@ -65,6 +76,7 @@ CREATE TABLE IF NOT EXISTS lancamento (
   hash_dedup TEXT NOT NULL,
   possivel_duplicado_de INTEGER REFERENCES lancamento(id),
   motivo_revisao TEXT,
+  evento_id INTEGER REFERENCES evento(id),
   criado_em TEXT NOT NULL,
   atualizado_em TEXT NOT NULL
 );
@@ -121,6 +133,23 @@ CREATE TABLE IF NOT EXISTS premissa (
   PRIMARY KEY (usuario_id, chave)
 );
 
+-- Classe do orcamento escolhida pelo usuario para uma categoria (substitui a classe padrao).
+CREATE TABLE IF NOT EXISTS classe_categoria (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  categoria TEXT NOT NULL,
+  classe TEXT NOT NULL,
+  PRIMARY KEY (usuario_id, categoria)
+);
+
+-- Valores planejados. mes = '*' vale para todos os meses sem valor proprio; item = categoria ou '__receita'.
+CREATE TABLE IF NOT EXISTS orcamento (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  mes TEXT NOT NULL,
+  item TEXT NOT NULL,
+  valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0),
+  PRIMARY KEY (usuario_id, mes, item)
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
   id INTEGER PRIMARY KEY,
   lancamento_id INTEGER NOT NULL,
@@ -137,4 +166,5 @@ export function prepararBanco(db: Db): void {
   const col = (tabela: string) => (db.prepare(`PRAGMA table_info(${tabela})`).all() as { name: string }[]).map((c) => c.name);
   if (!col("meta").includes("perfil")) db.exec("ALTER TABLE meta ADD COLUMN perfil TEXT NOT NULL DEFAULT 'moderado'");
   if (!col("lancamento").includes("motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
+  if (!col("lancamento").includes("evento_id")) db.exec("ALTER TABLE lancamento ADD COLUMN evento_id INTEGER REFERENCES evento(id)");
 }
