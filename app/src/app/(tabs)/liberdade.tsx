@@ -4,13 +4,14 @@ import type { Moeda } from "../../../../core/src/index";
 import { LiberdadeAportes } from "../../components/liberdade-aportes";
 import { LiberdadeCambio } from "../../components/liberdade-cambio";
 import { LiberdadeDistribuicao } from "../../components/liberdade-distribuicao";
+import { LiberdadeCarteira } from "../../components/liberdade-carteira";
 import { LiberdadeEvolucao } from "../../components/liberdade-evolucao";
 import { LiberdadeExtratos } from "../../components/liberdade-extratos";
 import { LiberdadeImportar } from "../../components/liberdade-importar";
 import { LiberdadeManual } from "../../components/liberdade-manual";
 import { LiberdadeMetas } from "../../components/liberdade-metas";
 import { LiberdadePatrimonio } from "../../components/liberdade-patrimonio";
-import { LiberdadePosicoes } from "../../components/liberdade-posicoes";
+import { LiberdadePizzas } from "../../components/liberdade-pizzas";
 import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
@@ -19,7 +20,7 @@ import { useBotaoAtualizar, useDados } from "../../hooks/useDados";
 import { api, type DadosLiberdade } from "../../lib/api";
 import { mesAtual } from "../../lib/format";
 
-type PosicaoDoPatrimonio = DadosLiberdade["patrimonio"]["posicoes"][number];
+type ItemDaCarteira = DadosLiberdade["carteira"]["itens"][number];
 
 /** Acompanhamento de investimentos a partir de extratos em PDF e de posições lançadas à mão. Só organiza dados e mostra números. */
 export default function Liberdade() {
@@ -41,15 +42,15 @@ export default function Liberdade() {
     else void recarregar();
   }
 
-  async function removerPosicao(p: PosicaoDoPatrimonio) {
+  async function removerPosicao(i: ItemDaCarteira) {
     try {
-      await api.removerPosicaoInvestimento(p.id);
+      await api.removerPosicaoInvestimento(i.id);
       toast({
-        texto: `Posição removida: ${p.ativo}.`,
+        texto: `Posição removida: ${i.ativo}.`,
         acao: {
           rotulo: "Desfazer",
           fazer: async () => {
-            await api.adicionarPosicaoInvestimento({ mes: p.mes_snapshot, instituicao: p.instituicao, classe_ativo: p.classe_ativo, ativo: p.ativo, valor_centavos: p.valor_original_centavos, moeda: p.moeda as Moeda, codigo: p.codigo, quantidade: p.quantidade });
+            await api.adicionarPosicaoInvestimento({ mes: i.mes_snapshot, instituicao: i.instituicao, classe_ativo: i.classe_ativo, ativo: i.ativo, valor_centavos: i.saldo_original_centavos, moeda: i.moeda as Moeda, codigo: i.codigo, quantidade: i.quantidade, especie: i.especie_origem === "extrato" ? i.especie : null });
             await recarregar();
           },
         },
@@ -57,6 +58,12 @@ export default function Liberdade() {
     } catch (e) {
       toast({ texto: e instanceof Error ? e.message : "Não foi possível remover a posição." });
     }
+    await recarregar();
+  }
+
+  async function salvarCadastro(chave: string, alteracao: Record<string, unknown>) {
+    await api.salvarCadastroAtivo(chave, alteracao);
+    toast({ texto: "Cadastro do ativo salvo." });
     await recarregar();
   }
 
@@ -84,11 +91,12 @@ export default function Liberdade() {
         {d && !vazio ? (
           <>
             <LiberdadePatrimonio dados={d} mes={mes} />
+            <LiberdadeCarteira carteira={d.carteira} mes={mes} aoSalvarCadastro={salvarCadastro} aoRemoverPosicao={removerPosicao} />
+            <LiberdadePizzas carteira={d.carteira} />
             <LiberdadeDistribuicao patrimonio={d.patrimonio} />
             <LiberdadeEvolucao evolucao={d.evolucao} mes={mes} />
-            <LiberdadePosicoes patrimonio={d.patrimonio} mes={mes} aoRemover={removerPosicao} />
             <LiberdadeAportes dados={d} />
-            <LiberdadeMetas patrimonioCentavos={d.patrimonio.total_centavos} metas={dados?.metas ?? []} />
+            <LiberdadeMetas patrimonioCentavos={d.patrimonio.liberdade_centavos} metaCentavos={d.patrimonio.meta_centavos} metas={dados?.metas ?? []} />
             <LiberdadeCambio mes={mes} cambios={d.cambios} temMoedaEstrangeira={d.patrimonio.contas.some((c) => c.moeda !== "BRL")} aoMudar={recarregar} />
             {importar}
             {manual}

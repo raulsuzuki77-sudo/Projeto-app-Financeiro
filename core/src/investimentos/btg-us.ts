@@ -1,5 +1,5 @@
 import { acharSequencia, centavosUS, colapsar, dataIso, numeroUS, sa, textoDasLinhas, tokens, ultimos4 } from "./texto";
-import type { ClasseAtivo, Conferencia, ConferenciaItem, ExtratoLido, LinhaTexto, MovimentoLido, PosicaoLida, ResultadoLeitura, TipoMovimento } from "./tipos";
+import type { ClasseAtivo, Conferencia, ConferenciaItem, DetalhePosicao, ExtratoLido, LinhaTexto, MovimentoLido, PosicaoLida, ResultadoLeitura, TipoMovimento } from "./tipos";
 
 /**
  * Leitor do "Account Statement" da BTG Pactual US Capital (custodia DriveWealth), em dolares.
@@ -13,12 +13,25 @@ const RE_DATA_US = /^\d{2}\/\d{2}\/\d{4}$/;
 
 const ehDinheiro = (t: string): boolean => /^\(?-?\$?\d[\d,]*\.\d+\)?$/.test(t) && centavosUS(t) !== null;
 
-export function ehExtratoBtgUS(linhas: LinhaTexto[]): boolean {
+const MARCAS_US: [string, RegExp][] = [
+  ["BTG Pactual US", /btg\s*pactual\s*us/],
+  ["Account Statement", /account\s*statement/],
+  ["Ending Account Value", /ending\s*account\s*value/],
+];
+
+export function marcasBtgUS(linhas: LinhaTexto[]): [string, boolean][] {
   const t = sa(textoDasLinhas(linhas).join(" "));
-  return /btg\s*pactual us/.test(t) && /account statement/.test(t) && /ending account value/.test(t);
+  return MARCAS_US.map(([nome, re]) => [nome, re.test(t)]);
 }
 
-/** Cabecalho e rodape repetidos em cada pagina. */
+export function ehExtratoBtgUS(linhas: LinhaTexto[]): boolean {
+  return marcasBtgUS(linhas).every(([, ok]) => ok);
+}
+
+/**
+ * Cabecalho e rodape repetidos em cada pagina. Tolerante a linhas mescladas pela posicao (ex.: "Account Statement 601 LEXINGTON AVENUE"):
+ * as marcas do cabecalho valem em qualquer ponto da linha, pois nenhuma linha de posicao ou de atividade as contem.
+ */
 function ehRuido(l: string): boolean {
   return (
     /^Page \d+ of \d+/i.test(l) ||
@@ -26,12 +39,12 @@ function ehRuido(l: string): boolean {
     /^Custodial services provided/i.test(l) ||
     /^All DriveWealth trademarks/i.test(l) ||
     /^third party and are the property/i.test(l) ||
-    /^BTG Pactual US Capital/i.test(l) ||
+    /BTG Pactual US Capital/i.test(l) ||
     /^Account Statement\b/i.test(l) ||
-    /^\d+(st|nd|rd|th) FLOOR/i.test(l) ||
-    /^New York NY/i.test(l) ||
-    /^Account Number:/i.test(l) ||
-    /^[A-Za-z]+ \d{1,2}, \d{4}\s*-\s*[A-Za-z]+ \d{1,2}, \d{4}$/.test(l)
+    /\b\d+(st|nd|rd|th) FLOOR\b/i.test(l) ||
+    /\bNew York NY\b/i.test(l) ||
+    /\bAccount Number:/i.test(l) ||
+    /[A-Za-z]+ \d{1,2}, \d{4}\s*-\s*[A-Za-z]+ \d{1,2}, \d{4}/.test(l)
   );
 }
 
@@ -42,6 +55,8 @@ const ehCabecalhoColunas = (l: string): boolean => {
 };
 
 function classeDoCabecalho(l: string): ClasseAtivo | null {
+  // so linhas de letras: "(Bonds 02/56)" continua o nome de um titulo e nao e o cabecalho "Bonds"
+  if (!/^[A-Za-z][A-Za-z &/]*$/.test(l.trim())) return null;
   const n = sa(l).replace(/[^a-z]/g, "");
   if (["fixedincome", "bonds", "treasuries"].includes(n)) return "renda_fixa";
   if (["moneymarketfunds", "moneymarket", "cash", "cashequivalents", "cashandcashequivalents", "sweep"].includes(n)) return "caixa";
@@ -56,15 +71,48 @@ function parenAbertos(s: string): number {
   return (s.match(/\(/g)?.length ?? 0) - (s.match(/\)/g)?.length ?? 0);
 }
 
+/** Especie padrao pelo cabecalho da secao (a descricao do titulo refina a renda fixa). */
+function especieDoCabecalho(l: string): string | null {
+  const n = sa(l).replace(/[^a-z]/g, "");
+  if (["fixedincome", "bonds", "treasuries"].includes(n)) return "Renda fixa (EUA)";
+  if (["moneymarketfunds", "moneymarket", "cash", "cashequivalents", "cashandcashequivalents", "sweep"].includes(n)) return "Cash";
+  if (["equities", "stocks"].includes(n)) return "Ações (EUA)";
+  if (["etfs", "etf"].includes(n)) return "ETFs (EUA)";
+  if (["mutualfunds", "funds"].includes(n)) return "Fundos (EUA)";
+  if (n === "options") return "Opções (EUA)";
+  if (["otherassets", "alternativeassets", "other"].includes(n)) return "Outros";
+  return null;
+}
+
+const RE_SWEEP = /bank sweep|sweep program|\bDWBDS\b/i;
+
+/** Especie, vencimento e cupom de um titulo do Tesouro americano a partir da descricao do extrato. */
+function detalharTitulo(descricao: string): { especie: string | null; vencimento?: string; cupom?: number } {
+  const t = /treasury\s+(bills?|notes?|bonds?)/i.exec(descricao);
+  const especie = t ? `Treasury ${t[1]!.charAt(0).toUpperCase()}${t[1]!.slice(1).toLowerCase().replace(/s?$/, "s")}` : null;
+  const v = /(\d+(?:\.\d+)?)%\s+(?:BILL|NTS|BDS)\s+(\d{2})\/(\d{2})\/(\d{4})/i.exec(descricao);
+  const out: { especie: string | null; vencimento?: string; cupom?: number } = { especie };
+  if (v) {
+    const iso = dataIso(Number(v[4]), Number(v[3]), Number(v[2]));
+    if (iso) out.vencimento = iso;
+    out.cupom = Number(v[1]);
+  }
+  return out;
+}
+
 function lerHoldings(linhas: string[], avisos: string[]): PosicaoLida[] {
   const posicoes: PosicaoLida[] = [];
+  const rotulosCustoZero: string[] = [];
   let classe: ClasseAtivo | null = null;
+  let especieSecao: string | null = null;
   let pend: string[] = [];
   let ultima: PosicaoLida | null = null;
+  const dados = new Map<PosicaoLida, { unit: number; total: number; gain: number }>();
   for (const l of linhas) {
     const c = classeDoCabecalho(l);
     if (c) {
       classe = c;
+      especieSecao = especieDoCabecalho(l);
       pend = [];
       ultima = null;
       continue;
@@ -76,7 +124,19 @@ function lerHoldings(linhas: string[], avisos: string[]): PosicaoLida[] {
     if (m && cel && cel.every((x) => centavosUS(x) !== null)) {
       const valor = centavosUS(m[7]!)!;
       if (classe === null) avisos.push(`Posição ${m[2]} fora de uma seção conhecida (renda fixa, caixa...): classe "outros".`);
-      const p: PosicaoLida = { classe_ativo: classe ?? "outros", ativo: m[1]!.trim() || m[2]!, codigo: m[2]!, quantidade: numeroUS(m[3]!), valor_centavos: valor };
+      const p: PosicaoLida = {
+        classe_ativo: classe ?? "outros",
+        ativo: m[1]!.trim() || m[2]!,
+        codigo: m[2]!,
+        quantidade: numeroUS(m[3]!),
+        valor_centavos: valor,
+        especie: especieSecao,
+        preco_fechamento: numeroUS(m[6]!),
+        preco_medio: null,
+        custo_total_centavos: null,
+        detalhe: { tipo_conta: m[9]! },
+      };
+      dados.set(p, { unit: numeroUS(m[4]!) ?? 0, total: centavosUS(m[5]!) ?? 0, gain: centavosUS(m[8]!) ?? 0 });
       posicoes.push(p);
       ultima = p;
       pend = [];
@@ -87,6 +147,41 @@ function lerHoldings(linhas: string[], avisos: string[]): PosicaoLida[] {
       continue;
     }
     pend.push(l);
+  }
+  for (const p of posicoes) {
+    const d = dados.get(p)!;
+    const det: DetalhePosicao = p.detalhe ?? {};
+    det.descricao_original = p.ativo;
+    // saldo de caixa do programa de varredura (DWBDS): chamado de "Cash"
+    if (RE_SWEEP.test(p.ativo) || RE_SWEEP.test(p.codigo ?? "")) {
+      p.ativo = "Cash";
+      p.especie = "Cash";
+      p.classe_ativo = "caixa";
+    } else if (p.classe_ativo === "renda_fixa") {
+      const t = detalharTitulo(p.ativo);
+      if (t.especie) p.especie = t.especie;
+      if (t.vencimento) det.vencimento = t.vencimento;
+      if (t.cupom !== undefined) det.cupom = t.cupom;
+    }
+    // titulos cotados por 100 de valor de face: valor = quantidade x preco x 0,01
+    if (p.quantidade !== null && p.preco_fechamento != null && p.preco_fechamento > 0) {
+      const v = p.valor_centavos;
+      const erro1 = Math.abs(Math.round(p.quantidade * p.preco_fechamento * 100) - v);
+      const erro2 = Math.abs(Math.round(p.quantidade * p.preco_fechamento) - v);
+      const melhor = erro2 < erro1 ? 0.01 : 1;
+      det.fator_preco = melhor;
+      if (Math.min(erro1, erro2) > Math.max(2, Math.abs(v) * 0.005)) avisos.push(`${p.codigo}: quantidade x preço difere do valor de mercado informado em mais de 0,5%.`);
+    }
+    // custo: 0,00 (comum apos transferencia ACATS) NAO e custo zero, e custo nao informado; nunca vira lucro de 100%
+    if (d.total > 0) {
+      p.custo_total_centavos = d.total;
+      if (d.unit > 0 && p.classe_ativo !== "caixa") p.preco_medio = d.unit;
+      det.gain_loss_extrato_centavos = d.gain;
+    } else if (p.classe_ativo !== "caixa") rotulosCustoZero.push(p.codigo ?? p.ativo);
+    p.detalhe = det;
+  }
+  if (rotulosCustoZero.length > 0) {
+    avisos.push(`Custo 0,00 no extrato (${rotulosCustoZero.join(", ")}), típico de transferência ACATS: tratado como NÃO informado, sem lucro calculado. Informe o preço médio do ativo para ver o resultado.`);
   }
   return posicoes;
 }
@@ -133,11 +228,17 @@ function lerAtividade(linhas: string[], avisos: string[]): MovimentoLido[] {
     for (let i = resto.length - 1; i >= 0; i--) if (RE_VALOR_ATIVIDADE.test(resto[i]!)) { iv = i; break; }
     let valor: number | null = null;
     let corpo = resto;
+    let qtd: number | null = null;
+    let preco: number | null = null;
     if (iv >= 0) {
       valor = centavosUS(resto[iv]!);
       corpo = resto.slice(0, iv);
       const n = corpo.length;
-      if (n >= 2 && numeroUS(corpo[n - 1]!) !== null && numeroUS(corpo[n - 2]!) !== null) corpo = corpo.slice(0, n - 2);
+      if (n >= 2 && numeroUS(corpo[n - 1]!) !== null && numeroUS(corpo[n - 2]!) !== null) {
+        qtd = numeroUS(corpo[n - 2]!);
+        preco = numeroUS(corpo[n - 1]!);
+        corpo = corpo.slice(0, n - 2);
+      }
     }
     const { tipo, rotulo } = tipoAtividade(tp);
     const simbolo = /^[A-Z0-9.]{1,12}$/.test(corpo[0] ?? "") && corpo[1] === "-" ? corpo[0]! : null;
@@ -148,7 +249,7 @@ function lerAtividade(linhas: string[], avisos: string[]): MovimentoLido[] {
     }
     if (tipo === "custodia" && valor === 0) semValor++;
     const v = tipo === "aporte" || tipo === "resgate" || tipo === "compra" || tipo === "venda" ? Math.abs(valor) : valor;
-    out.push({ data_local: data, tipo, descricao: detalhe ? `${rotulo}: ${detalhe}`.slice(0, 140) : rotulo, codigo: simbolo, valor_centavos: v, em_transito: false });
+    out.push({ data_local: data, tipo, descricao: detalhe ? `${rotulo}: ${detalhe}`.slice(0, 140) : rotulo, codigo: simbolo, valor_centavos: v, em_transito: false, quantidade: qtd, preco: preco !== null && preco > 0 ? preco : null });
   }
   if (semValor > 0) avisos.push(`${semValor} transferência(s) de títulos (ACATS) sem valor informado no extrato: os títulos entram nas posições, mas o valor não entra nos aportes.`);
   return out;

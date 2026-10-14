@@ -37,3 +37,8 @@ export * from "./investimentos/servico";
 export * from "./documentos/documentos";
 export * from "./ingest/lote";
 export * from "./documentos/pasta";
+export * from "./investimentos/cadastro";
+export * from "./investimentos/carteira";
+export * from "./investimentos/diagnostico";
+export * from "./investimentos/dicionario";
+export * from "./investimentos/setorial";

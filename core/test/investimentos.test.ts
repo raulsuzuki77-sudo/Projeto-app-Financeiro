@@ -45,16 +45,21 @@ for (const [nome, linhas] of Object.entries(variantes("btg-brasil-sintetico.txt"
     assert.equal(e.periodo_fim, "2026-09-30");
 
     const porClasse = (c: string) => e.posicoes.filter((p) => p.classe_ativo === c);
-    assert.equal(e.posicoes.length, 8);
+    assert.equal(e.posicoes.length, 9);
     assert.deepEqual(porClasse("previdencia").map((p) => [p.ativo, p.valor_centavos, p.quantidade]), [["FUNDO EXEMPLO PREV FI RF", 250000, 1000]]);
-    assert.deepEqual(porClasse("renda_variavel").map((p) => [p.codigo, p.ativo, p.quantidade, p.valor_centavos]), [
-      ["ABCD3", "EMPRESA ALFA ON NM (Ação)", 10, 20000],
-      ["EFGH4", "EMPRESA BETA PN (Ação)", 5, 15050],
-      ["IJKL11", "ETF EXEMPLO CI (ETF)", 2, 20000],
-      ["MNOP11", "FII EXEMPLO CI (FII)", 4, 20100],
+    assert.deepEqual(porClasse("renda_variavel").map((p) => [p.codigo, p.ativo, p.especie, p.quantidade, p.valor_centavos]), [
+      ["ABCD3", "EMPRESA ALFA ON NM", "Ações", 10, 20000],
+      ["EFGH4", "EMPRESA BETA PN", "Ações", 5, 15050],
+      ["IJKL11", "ETF EXEMPLO CI", "ETFs", 2, 20000],
+      ["MNOP11", "FII EXEMPLO CI", "Fundos listados (FII)", 4, 20100],
     ]);
-    assert.deepEqual(porClasse("caixa").map((p) => p.valor_centavos), [100150]);
-    assert.deepEqual(porClasse("transito").map((p) => [p.ativo, p.valor_centavos]), [["Valores em trânsito (renda variável)", -39680], ["Valores em trânsito (previdência)", 48000]]);
+    assert.deepEqual(porClasse("caixa").map((p) => [p.ativo, p.especie, p.valor_centavos]), [["Conta corrente", "Conta corrente", 100150]]);
+    // cada item em transito e uma posicao (compra liquidando, provento a receber, contribuicao de previdencia a creditar)
+    assert.deepEqual(porClasse("transito").map((p) => [p.ativo, p.especie, p.codigo, p.valor_centavos]), [
+      ["COMPRA - IJKL11", "Compras a liquidar", "IJKL11", -40000],
+      ["DIVIDENDOS - EMPRESA ALFA ON NM", "Proventos a receber", "ABCD3", 320],
+      ["Contribuição (previdência)", "Contribuição de previdência a creditar", null, 48000],
+    ]);
 
     assert.equal(e.total_declarado_centavos, 433620);
     assert.equal(e.conferencia.soma_posicoes_centavos, 433620);
@@ -71,7 +76,7 @@ for (const [nome, linhas] of Object.entries(variantes("btg-brasil-sintetico.txt"
     assert.deepEqual(m("custodia").map((x) => [x.codigo, x.valor_centavos]), [["ABCD3", 19500]]);
     assert.deepEqual(m("compra", true).map((x) => [x.codigo, x.data_local, x.valor_centavos]), [["IJKL11", "2026-10-01", 40000]]);
     // dividendo "N/D" assume o fim do periodo; o rendimento da conta corrente repete o da renda variavel e conta uma vez
-    assert.deepEqual(m("provento", true).map((x) => [x.data_local, x.valor_centavos]), [["2026-09-30", 320]]);
+    assert.deepEqual(m("provento", true).map((x) => [x.data_local, x.valor_centavos, x.codigo]), [["2026-09-30", 320, "ABCD3"]]);
     assert.equal(m("provento").length, 1);
     assert.ok(e.avisos.some((a) => a.includes("contados uma só vez")));
     assert.ok(e.movimentos.every((x) => !/FULANO/.test(x.descricao)));
@@ -112,7 +117,21 @@ for (const [nome, linhas] of Object.entries(variantes("btg-us-sintetico.txt"))) 
       ["caixa", "DWBDS", 0.75, 75],
     ]);
     assert.ok(e.posicoes[1]!.ativo.endsWith("(Notes 05/30)"));
-    assert.ok(e.posicoes[2]!.ativo.endsWith("BY SIPC)"));
+    // o saldo do programa de varredura (DWBDS) chama-se "Cash"; o texto original fica no detalhe
+    assert.equal(e.posicoes[2]!.ativo, "Cash");
+    assert.equal(e.posicoes[2]!.especie, "Cash");
+    assert.match(e.posicoes[2]!.detalhe!.descricao_original!, /BY SIPC\)$/);
+    assert.deepEqual(e.posicoes.map((p) => p.especie), ["Treasury Bills", "Treasury Notes", "Cash"]);
+    assert.deepEqual(e.posicoes.map((p) => p.preco_fechamento), [98.5, 101, 1]);
+    // custo 0,00 (transferencia ACATS) e "nao informado", nunca custo zero; custo informado vira preco medio
+    assert.equal(e.posicoes[0]!.preco_medio, null);
+    assert.equal(e.posicoes[0]!.custo_total_centavos, null);
+    assert.equal(e.posicoes[0]!.detalhe!.gain_loss_extrato_centavos, undefined);
+    assert.equal(e.posicoes[1]!.preco_medio, 100);
+    assert.equal(e.posicoes[1]!.custo_total_centavos, 150000);
+    assert.equal(e.posicoes[1]!.detalhe!.gain_loss_extrato_centavos, 1500);
+    assert.deepEqual([e.posicoes[0]!.detalhe!.fator_preco, e.posicoes[0]!.detalhe!.vencimento, e.posicoes[1]!.detalhe!.cupom, e.posicoes[1]!.detalhe!.vencimento], [0.01, "2026-12-30", 4, "2030-05-15"]);
+    assert.ok(e.avisos.some((a) => a.includes("NÃO informado") && a.includes("123456AB1")));
     assert.equal(e.total_declarado_centavos, 250075);
     assert.equal(e.conferencia.soma_posicoes_centavos, 250075);
     assert.equal(e.conferencia.confere, true);
@@ -176,7 +195,7 @@ test("salvarExtrato e idempotente pelo hash e grava posicoes e movimentos", () =
   const r2 = salvarExtrato(db, U, e, "h1");
   assert.equal(r2.status, "ja_importado");
   assert.equal(contar(db, "extrato_investimento"), 1);
-  assert.equal(contar(db, "posicao_investimento"), 8);
+  assert.equal(contar(db, "posicao_investimento"), 9);
   assert.equal(contar(db, "movimento_investimento"), e.movimentos.length);
   const lista = listarExtratos(db, U);
   assert.equal(lista.length, 1);

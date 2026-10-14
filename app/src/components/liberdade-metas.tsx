@@ -4,8 +4,11 @@ import { Cartao, Texto } from "./ui";
 import type { Meta } from "../lib/api";
 import { formatarBRL } from "../lib/format";
 
-/** Patrimônio total contra a soma dos valores-alvo das metas ativas. Só números: sem recomendação. */
-export function LiberdadeMetas({ patrimonioCentavos, metas }: { patrimonioCentavos: number; metas: Meta[] }) {
+/**
+ * Patrimônio da liberdade financeira (total menos o que está marcado como Meta, isto é, reserva ou provisão) contra a soma dos
+ * valores-alvo das metas ativas. Só números: sem recomendação.
+ */
+export function LiberdadeMetas({ patrimonioCentavos, metaCentavos = 0, metas }: { patrimonioCentavos: number; metaCentavos?: number; metas: Meta[] }) {
   const t = useTema();
   const alvo = metas.reduce((s, m) => s + m.valor_alvo_centavos, 0);
   const pct = alvo > 0 ? (patrimonioCentavos / alvo) * 100 : 0;
@@ -17,7 +20,8 @@ export function LiberdadeMetas({ patrimonioCentavos, metas }: { patrimonioCentav
         <Texto suave>Nenhuma meta ativa. Cadastre metas em Mais opções, Metas e cenários para comparar com o patrimônio.</Texto>
       ) : (
         <>
-          <Texto>{`Patrimônio: ${formatarBRL(patrimonioCentavos)}`}</Texto>
+          <Texto>{`Patrimônio da liberdade financeira: ${formatarBRL(patrimonioCentavos)}`}</Texto>
+          {metaCentavos !== 0 ? <Texto suave pequeno>{`Fora desta comparação: ${formatarBRL(metaCentavos)} marcados como Meta (reserva e provisões).`}</Texto> : null}
           <Texto>{`Soma dos valores-alvo de ${metas.length} meta(s) ativa(s): ${formatarBRL(alvo)}`}</Texto>
           <View
             accessible

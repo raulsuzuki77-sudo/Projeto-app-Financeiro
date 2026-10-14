@@ -20,7 +20,7 @@ HOLDINGS
 FixedIncome
 Description Symbol Quantity Unit Cost Total Cost Market Price Market Value Gain/ (Loss) A/C Type
 United States Treasury Bills 0% BILL 30/12/2026 USD 123456AB1 1000 0.00 0.00 98.500000 985.00 985.00 M
-United States Treasury Notes 4% NTS 15/05/2030 USD 123456CD2 1500 0.00 0.00 101.000000 1,515.00 1,515.00 M
+United States Treasury Notes 4% NTS 15/05/2030 USD 123456CD2 1500 100.00 1,500.00 101.000000 1,515.00 15.00 M
 (Notes 05/30)
 MoneyMarket funds
 Description Symbol Quantity Unit Cost Total Cost Market Price Market Value Gain/ (Loss) A/C Type

@@ -1,4 +1,4 @@
-import type { LinhaTexto } from "../../../core/src/index";
+import { novoDiagnostico, registrarLinhas, type DiagnosticoLeitura, type LinhaTexto } from "../../../core/src/index";
 import { lerBytes } from "./arquivos";
 import { itensParaLinhas, type ItemPdf } from "./extrato-pdf-linhas";
 import { ErroPdfProtegido } from "./ocr-erro";
@@ -26,7 +26,7 @@ const MINIMO_TEXTO = 200;
  * Versão web: lê a camada de texto do PDF com o pdf.js e monta as linhas juntando trechos contíguos
  * (ver `itensParaLinhas`). PDF digitalizado cai no OCR de `reconhecerTexto`.
  */
-export async function textoDoPdf(uri: string, senha?: string | null): Promise<LinhaTexto[]> {
+export async function textoDoPdf(uri: string, senha?: string | null, diag: DiagnosticoLeitura = novoDiagnostico()): Promise<LinhaTexto[]> {
   const bytes = new Uint8Array(await lerBytes(uri));
   // @ts-ignore: o pdfjs-dist 3.x nao traz declaracoes para o build UMD
   const pdfjs = (await import("pdfjs-dist/build/pdf")) as { getDocument(o: Record<string, unknown>): { promise: Promise<DocumentoPdf> } };
@@ -55,6 +55,16 @@ export async function textoDoPdf(uri: string, senha?: string | null): Promise<Li
     await doc.destroy();
   }
   const util = itens.reduce((s, i) => s + (i.str.match(/[\p{L}\p{N}]/gu)?.length ?? 0), 0);
-  if (util < MINIMO_TEXTO) return reconhecerTexto(uri, senha);
-  return itensParaLinhas(itens);
+  diag.itens = itens.filter((i) => i.str !== "").length;
+  if (util < MINIMO_TEXTO) {
+    diag.tentativas.push(`pdfjs: ${diag.itens} itens, só ${util} letras e dígitos; seguiu para o OCR`);
+    const ocr = await reconhecerTexto(uri, senha);
+    registrarLinhas(diag, ocr, "ocr-web");
+    diag.tentativas.push(`ocr-web: ${ocr.length} linhas`);
+    return ocr;
+  }
+  const linhas = itensParaLinhas(itens);
+  diag.tentativas.push(`pdfjs: ${diag.itens} itens em ${doc.numPages} página(s), ${linhas.length} linhas`);
+  registrarLinhas(diag, linhas, "pdfjs");
+  return linhas;
 }

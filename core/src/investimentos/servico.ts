@@ -1,5 +1,7 @@
 import type { Db } from "../db/tipos";
-import { CLASSES_ATIVO, ROTULO_CLASSE, type ClasseAtivo, type ExtratoLido, type Moeda, type TipoMovimento } from "./tipos";
+import { mapaCadastro } from "./cadastro";
+import { chaveDoAtivo } from "./dicionario";
+import { CLASSES_ATIVO, ROTULO_CLASSE, type ClasseAtivo, type DetalhePosicao, type ExtratoLido, type Moeda, type TipoMovimento } from "./tipos";
 
 const RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -58,13 +60,21 @@ export function salvarExtrato(db: Db, usuarioId: string, e: ExtratoLido, hashArq
       .run(usuarioId, mes, e.instituicao, e.conta, e.moeda);
 
     const r = db
-      .prepare("INSERT INTO extrato_investimento (usuario_id, instituicao, conta, moeda, periodo_inicio, periodo_fim, hash_arquivo, total_declarado_centavos, importado_em) VALUES (?,?,?,?,?,?,?,?,?)")
-      .run(usuarioId, e.instituicao, e.conta, e.moeda, e.periodo_inicio, e.periodo_fim, hashArquivo, e.total_declarado_centavos, agora);
+      .prepare("INSERT INTO extrato_investimento (usuario_id, instituicao, conta, moeda, periodo_inicio, periodo_fim, hash_arquivo, total_declarado_centavos, importado_em, distribuicao_setorial_json) VALUES (?,?,?,?,?,?,?,?,?,?)")
+      .run(usuarioId, e.instituicao, e.conta, e.moeda, e.periodo_inicio, e.periodo_fim, hashArquivo, e.total_declarado_centavos, agora, e.distribuicao_setorial && e.distribuicao_setorial.length > 0 ? JSON.stringify(e.distribuicao_setorial) : null);
     const id = Number(r.lastInsertRowid);
-    const insPos = db.prepare("INSERT INTO posicao_investimento (usuario_id, extrato_id, mes, instituicao, conta, classe_ativo, ativo, codigo, quantidade, moeda, valor_centavos, origem, criada_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,'extrato',?)");
-    for (const p of e.posicoes) insPos.run(usuarioId, id, mes, e.instituicao, e.conta, p.classe_ativo, p.ativo, p.codigo, p.quantidade, e.moeda, p.valor_centavos, agora);
-    const insMov = db.prepare("INSERT INTO movimento_investimento (usuario_id, extrato_id, data_local, instituicao, conta, tipo, descricao, codigo, moeda, valor_centavos, em_transito) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-    for (const m of e.movimentos) insMov.run(usuarioId, id, m.data_local, e.instituicao, e.conta, m.tipo, m.descricao, m.codigo, e.moeda, m.valor_centavos, m.em_transito ? 1 : 0);
+    const insPos = db.prepare(
+      "INSERT INTO posicao_investimento (usuario_id, extrato_id, mes, instituicao, conta, classe_ativo, ativo, codigo, quantidade, moeda, valor_centavos, origem, criada_em, especie, cnpj, preco_fechamento, preco_medio, custo_total_centavos, detalhe_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,'extrato',?,?,?,?,?,?,?)",
+    );
+    for (const p of e.posicoes) {
+      insPos.run(
+        usuarioId, id, mes, e.instituicao, e.conta, p.classe_ativo, p.ativo, p.codigo, p.quantidade, e.moeda, p.valor_centavos, agora,
+        p.especie ?? null, p.cnpj ?? null, p.preco_fechamento ?? null, p.preco_medio != null && p.preco_medio > 0 ? p.preco_medio : null, p.custo_total_centavos ?? null,
+        p.detalhe && Object.keys(p.detalhe).length > 0 ? JSON.stringify(p.detalhe) : null,
+      );
+    }
+    const insMov = db.prepare("INSERT INTO movimento_investimento (usuario_id, extrato_id, data_local, instituicao, conta, tipo, descricao, codigo, moeda, valor_centavos, em_transito, quantidade, preco) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    for (const m of e.movimentos) insMov.run(usuarioId, id, m.data_local, e.instituicao, e.conta, m.tipo, m.descricao, m.codigo, e.moeda, m.valor_centavos, m.em_transito ? 1 : 0, m.quantidade ?? null, m.preco ?? null);
     return { status: "salvo", extrato_id: id, posicoes: e.posicoes.length, movimentos: e.movimentos.length, substituidas: substituidas + sub.changes };
   })();
 }
@@ -120,6 +130,7 @@ export interface PosicaoManual {
   moeda?: Moeda;
   codigo?: string | null;
   quantidade?: number | null;
+  especie?: string | null;
 }
 
 export function adicionarPosicaoManual(db: Db, usuarioId: string, p: PosicaoManual): number {
@@ -131,8 +142,8 @@ export function adicionarPosicaoManual(db: Db, usuarioId: string, p: PosicaoManu
   const moeda = p.moeda ?? "BRL";
   if (moeda !== "BRL" && moeda !== "USD") throw new Error("moeda inválida");
   const r = db
-    .prepare("INSERT INTO posicao_investimento (usuario_id, extrato_id, mes, instituicao, conta, classe_ativo, ativo, codigo, quantidade, moeda, valor_centavos, origem, criada_em) VALUES (?,NULL,?,?,'',?,?,?,?,?,?,'manual',?)")
-    .run(usuarioId, p.mes, p.instituicao.trim(), p.classe_ativo, p.ativo.trim(), p.codigo ?? null, p.quantidade ?? null, moeda, p.valor_centavos, new Date().toISOString());
+    .prepare("INSERT INTO posicao_investimento (usuario_id, extrato_id, mes, instituicao, conta, classe_ativo, ativo, codigo, quantidade, moeda, valor_centavos, origem, criada_em, especie) VALUES (?,NULL,?,?,'',?,?,?,?,?,?,'manual',?,?)")
+    .run(usuarioId, p.mes, p.instituicao.trim(), p.classe_ativo, p.ativo.trim(), p.codigo ?? null, p.quantidade ?? null, moeda, p.valor_centavos, new Date().toISOString(), p.especie?.trim() || null);
   return Number(r.lastInsertRowid);
 }
 
@@ -203,6 +214,18 @@ export interface PosicaoPatrimonio {
   mes_snapshot: string;
   defasado: boolean;
   origem: string;
+  especie: string | null;
+  cnpj: string | null;
+  /** Preco de fechamento / cotacao, na moeda da posicao (unidade). */
+  preco_fechamento: number | null;
+  /** Preco medio do EXTRATO; null = o extrato nao informa (ver o cadastro do ativo). */
+  preco_medio: number | null;
+  custo_total_centavos: number | null;
+  detalhe: DetalhePosicao;
+  /** Chave do cadastro do ativo (codigo ou nome). */
+  chave: string;
+  /** Marcada como Meta (reserva/provisao) no cadastro: renda fixa fora da liberdade financeira. */
+  meta: boolean;
 }
 
 export interface ContaPatrimonio {
@@ -225,7 +248,12 @@ export interface ContaPatrimonio {
 export interface Patrimonio {
   mes: string;
   sem_dados: boolean;
+  /** Patrimonio total, incluindo o que esta marcado como Meta. */
   total_centavos: number;
+  /** Parte do total marcada como Meta (reserva/provisao que o usuario saca quando o fato provisionado ocorre). */
+  meta_centavos: number;
+  /** Base da liberdade financeira: total menos Meta. */
+  liberdade_centavos: number;
   posicoes: PosicaoPatrimonio[];
   contas: ContaPatrimonio[];
   por_classe: { classe: ClasseAtivo; rotulo: string; total_centavos: number }[];
@@ -234,17 +262,29 @@ export interface Patrimonio {
   cambio_ausente: ContaPatrimonio[];
 }
 
+function lerDetalhe(json: string | null): DetalhePosicao {
+  if (!json) return {};
+  try {
+    const d = JSON.parse(json) as unknown;
+    return d && typeof d === "object" && !Array.isArray(d) ? (d as DetalhePosicao) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function patrimonio(db: Db, usuarioId: string, mes: string): Patrimonio {
   validarMes(mes);
   const rows = db
     .prepare(
-      `SELECT p.id, p.extrato_id, p.instituicao, p.conta, p.classe_ativo, p.ativo, p.codigo, p.quantidade, p.moeda, p.valor_centavos, p.mes, p.origem
+      `SELECT p.id, p.extrato_id, p.instituicao, p.conta, p.classe_ativo, p.ativo, p.codigo, p.quantidade, p.moeda, p.valor_centavos, p.mes, p.origem,
+              p.especie, p.cnpj, p.preco_fechamento, p.preco_medio, p.custo_total_centavos, p.detalhe_json
          FROM posicao_investimento p
          JOIN (SELECT instituicao, conta, moeda, MAX(mes) AS mes FROM posicao_investimento WHERE usuario_id = ? AND mes <= ? GROUP BY instituicao, conta, moeda) u
            ON u.instituicao = p.instituicao AND u.conta = p.conta AND u.moeda = p.moeda AND u.mes = p.mes
         WHERE p.usuario_id = ? ORDER BY p.id`,
     )
-    .all(usuarioId, mes, usuarioId) as { id: number; extrato_id: number | null; instituicao: string; conta: string; classe_ativo: ClasseAtivo; ativo: string; codigo: string | null; quantidade: number | null; moeda: string; valor_centavos: number; mes: string; origem: string }[];
+    .all(usuarioId, mes, usuarioId) as { id: number; extrato_id: number | null; instituicao: string; conta: string; classe_ativo: ClasseAtivo; ativo: string; codigo: string | null; quantidade: number | null; moeda: string; valor_centavos: number; mes: string; origem: string; especie: string | null; cnpj: string | null; preco_fechamento: number | null; preco_medio: number | null; custo_total_centavos: number | null; detalhe_json: string | null }[];
+  const cadastro = mapaCadastro(db, usuarioId);
 
   const taxas = new Map<string, TaxaUsada | null>();
   const taxa = (moeda: string): TaxaUsada | null => {
@@ -255,6 +295,7 @@ export function patrimonio(db: Db, usuarioId: string, mes: string): Patrimonio {
 
   const posicoes: PosicaoPatrimonio[] = rows.map((r) => {
     const t = taxa(r.moeda);
+    const chave = chaveDoAtivo(r.classe_ativo === "transito" ? null : r.codigo, r.ativo);
     return {
       id: r.id,
       extrato_id: r.extrato_id,
@@ -270,6 +311,14 @@ export function patrimonio(db: Db, usuarioId: string, mes: string): Patrimonio {
       mes_snapshot: r.mes,
       defasado: r.mes < mes,
       origem: r.origem,
+      especie: r.especie,
+      cnpj: r.cnpj,
+      preco_fechamento: r.preco_fechamento,
+      preco_medio: r.preco_medio,
+      custo_total_centavos: r.custo_total_centavos,
+      detalhe: lerDetalhe(r.detalhe_json),
+      chave,
+      meta: r.classe_ativo === "renda_fixa" && cadastro.get(chave)?.meta === true,
     };
   });
 
@@ -303,6 +352,7 @@ export function patrimonio(db: Db, usuarioId: string, mes: string): Patrimonio {
 
   const emReais = posicoes.filter((p) => p.valor_centavos !== null);
   const total = emReais.reduce((s, p) => s + p.valor_centavos!, 0);
+  const meta = emReais.filter((p) => p.meta).reduce((s, p) => s + p.valor_centavos!, 0);
   const porClasse = new Map<ClasseAtivo, number>();
   const porInst = new Map<string, number>();
   for (const p of emReais) {
@@ -313,6 +363,8 @@ export function patrimonio(db: Db, usuarioId: string, mes: string): Patrimonio {
     mes,
     sem_dados: posicoes.length === 0,
     total_centavos: total,
+    meta_centavos: meta,
+    liberdade_centavos: total - meta,
     posicoes,
     contas,
     por_classe: CLASSES_ATIVO.filter((c) => porClasse.has(c)).map((c) => ({ classe: c, rotulo: ROTULO_CLASSE[c], total_centavos: porClasse.get(c)! })),
@@ -325,6 +377,8 @@ export function patrimonio(db: Db, usuarioId: string, mes: string): Patrimonio {
 export interface PontoEvolucao {
   mes: string;
   total_centavos: number;
+  /** Total menos o que esta marcado como Meta (base da liberdade financeira). */
+  liberdade_centavos: number;
   sem_dados: boolean;
   /** Contas cujo snapshot e de mes anterior ao do ponto. */
   defasadas: number;
@@ -338,7 +392,7 @@ export function evolucaoPatrimonio(db: Db, usuarioId: string, ateMes: string, n 
   for (let i = n - 1; i >= 0; i--) {
     const mes = deslocar(ateMes, -i);
     const p = patrimonio(db, usuarioId, mes);
-    out.push({ mes, total_centavos: p.total_centavos, sem_dados: p.sem_dados, defasadas: p.defasadas.length, cambio_ausente: p.cambio_ausente.length > 0 });
+    out.push({ mes, total_centavos: p.total_centavos, liberdade_centavos: p.liberdade_centavos, sem_dados: p.sem_dados, defasadas: p.defasadas.length, cambio_ausente: p.cambio_ausente.length > 0 });
   }
   return out;
 }

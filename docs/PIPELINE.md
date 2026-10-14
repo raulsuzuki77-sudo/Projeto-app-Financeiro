@@ -17,6 +17,7 @@ Atualizado em 14/10/2026 (segunda versao do app). Base: decisao de tornar o apli
 | N2 Versao web para computador | Pacote zip com banco persistente no navegador, importacao de CSV/OFX/PDF/imagem, PDF com senha (DECISOES, item 14) |
 | O1 a O5 Orcamento, eventos, recorrentes | Classes do orcamento, eventos (viagens e ferias), recorrentes detectadas, orcamento planejado x realizado, campo de valor com mascara (DECISOES, item 15) |
 | P1 a P6 Correcoes e liberdade financeira | Totais consistentes, cura de dados, eventos por alta probabilidade, parcelas em fluxo de caixa, botao de revisao flutuante, aba Liberdade com extratos BTG (DECISOES, itens 16 e 17) |
+| P7 Liberdade detalhada | Leitura posicional no iPhone (PDFKit), detalhe por ativo, cadastro, Meta, tres pizzas e diagnostico (DECISOES, item 18); NAO verificado no aparelho |
 | U1 a U4 Segunda versao | Nova navegacao, pizza, revisao rapida, recorrentes, edicao/exclusao, senha de PDF, PDF pelo Compartilhar, previa web (ver DECISOES, item 12) |
 
 ## Em aberto (depende do usuario)
