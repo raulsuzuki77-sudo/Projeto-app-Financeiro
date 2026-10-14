@@ -1,6 +1,6 @@
 import type { Db } from "./tipos";
 
-export const VERSAO_SCHEMA = 4;
+export const VERSAO_SCHEMA = 5;
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conta (
@@ -217,6 +217,21 @@ CREATE TABLE IF NOT EXISTS cambio (
   PRIMARY KEY (usuario_id, mes, moeda)
 );
 
+-- Cadastro do ativo por codigo (ou nome, sem codigo), persistente entre extratos: o que o usuario informa e o extrato nao traz.
+-- preco_medio na moeda do ativo (unidade, nao centavos); null = nao informado. meta = reserva/provisao fora da liberdade financeira.
+CREATE TABLE IF NOT EXISTS ativo_cadastro (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  chave TEXT NOT NULL,
+  nome TEXT NOT NULL DEFAULT '',
+  especie TEXT,
+  setor TEXT,
+  exposicao TEXT CHECK (exposicao IS NULL OR exposicao IN ('nacional','estrangeira')),
+  preco_medio REAL,
+  meta INTEGER NOT NULL DEFAULT 0,
+  atualizado_em TEXT NOT NULL,
+  PRIMARY KEY (usuario_id, chave)
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
   id INTEGER PRIMARY KEY,
   lancamento_id INTEGER NOT NULL,
@@ -234,6 +249,19 @@ export function prepararBanco(db: Db): void {
   if (!col("meta").includes("perfil")) db.exec("ALTER TABLE meta ADD COLUMN perfil TEXT NOT NULL DEFAULT 'moderado'");
   if (!col("lancamento").includes("motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
   if (!col("lancamento").includes("evento_id")) db.exec("ALTER TABLE lancamento ADD COLUMN evento_id INTEGER REFERENCES evento(id)");
+  // Schema versao 5 (extratos de investimento detalhados por ativo). Colunas novas, todas anulaveis: idempotente.
+  const novas: [string, string, string][] = [
+    ["posicao_investimento", "especie", "TEXT"],
+    ["posicao_investimento", "cnpj", "TEXT"],
+    ["posicao_investimento", "preco_fechamento", "REAL"],
+    ["posicao_investimento", "preco_medio", "REAL"],
+    ["posicao_investimento", "custo_total_centavos", "INTEGER"],
+    ["posicao_investimento", "detalhe_json", "TEXT"],
+    ["movimento_investimento", "quantidade", "REAL"],
+    ["movimento_investimento", "preco", "REAL"],
+    ["extrato_investimento", "distribuicao_setorial_json", "TEXT"],
+  ];
+  for (const [tabela, coluna, tipo] of novas) if (!col(tabela).includes(coluna)) db.exec(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo}`);
   repararCategoriasIncoerentes(db);
 }
 

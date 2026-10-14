@@ -34,3 +34,8 @@ export * from "./orcamento/orcamento";
 export * from "./investimentos/tipos";
 export * from "./investimentos/leitor";
 export * from "./investimentos/servico";
+export * from "./investimentos/cadastro";
+export * from "./investimentos/carteira";
+export * from "./investimentos/diagnostico";
+export * from "./investimentos/dicionario";
+export * from "./investimentos/setorial";
