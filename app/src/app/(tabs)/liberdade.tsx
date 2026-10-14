@@ -90,9 +90,9 @@ export default function Liberdade() {
 
         {d && !vazio ? (
           <>
+            <LiberdadePizzas carteira={d.carteira} />
             <LiberdadePatrimonio dados={d} mes={mes} />
             <LiberdadeCarteira carteira={d.carteira} mes={mes} aoSalvarCadastro={salvarCadastro} aoRemoverPosicao={removerPosicao} />
-            <LiberdadePizzas carteira={d.carteira} />
             <LiberdadeDistribuicao patrimonio={d.patrimonio} />
             <LiberdadeEvolucao evolucao={d.evolucao} mes={mes} />
             <LiberdadeAportes dados={d} />

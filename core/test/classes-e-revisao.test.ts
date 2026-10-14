@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { abrirBancoTeste } from "./helpers";
 import {
-  alterarLancamento, classificar, definirLimiteClasse, editarLancamento, evolucaoDeClasses, importarTexto, listarParaRevisao, painelOrcamento, prepararBanco, registrarLancamento, resumoMensal, visoesDeDespesa,
+  alterarLancamento, classificar, definirLimiteClasse, editarLancamento, evolucaoDeClasses, importarTexto, listarLancamentos, listarParaRevisao, painelOrcamento, prepararBanco, registrarLancamento, resumoMensal, visoesDeDespesa,
 } from "../src/index";
 import type { Db } from "../src/db/tipos";
 
@@ -140,4 +140,20 @@ test("revisao inclui pendentes ate hoje e qualquer sem categoria (mesmo futuro),
   const lista = listarParaRevisao(db, U, { ate: "2026-09-30", ordem: "valor_asc" }) as { id: number; descricao: string }[];
   assert.deepEqual(lista.map((x) => x.descricao), ["Loja Beta Qualquer", "Loja Alfa Qualquer"], "o pendente futuro com categoria fica de fora; o futuro sem categoria entra");
   assert.ok(lista.some((x) => x.id === hoje));
+});
+
+test("fechamento do mes: resgates entram no caixa, Pix recebido de si mesmo e informado, filtros por natureza e categorias", () => {
+  const db = abrirBancoTeste();
+  lanca(db, "2026-09-05", 1000000, "Salário", { categoria: "receita_trabalho", tipo: "receita" });
+  lanca(db, "2026-09-10", 300000, "Aluguel", { categoria: "moradia" });
+  lanca(db, "2026-09-12", 200000, "Aplicação RDB", { categoria: "provisao_meta", tipo: "investimento" });
+  const r = importarTexto(db, "csv", "Data,Valor,Identificador,Descrição\n20/09/2026,50000.00,z1,Resgate RDB\n", { usuario_id: U });
+  assert.ok(r.ok);
+  const x = resumoMensal(db, U, "2026-09");
+  assert.equal(x.resgates_centavos, 5000000);
+  assert.equal(x.saldo_centavos, 1000000 - 300000 - 200000 + 5000000);
+  lanca(db, "2026-09-15", 700, "Café", { categoria: "alimentacao_restaurante" });
+  assert.equal((listarLancamentos(db, U, { mes: "2026-09", natureza: "fixo" }) as unknown[]).length, 1);
+  assert.equal((listarLancamentos(db, U, { mes: "2026-09", categorias: ["alimentacao_restaurante", "moradia"] }) as unknown[]).length, 2);
+  assert.equal((listarLancamentos(db, U, { mes: "2026-09", categorias: [] }) as unknown[]).length, 0);
 });

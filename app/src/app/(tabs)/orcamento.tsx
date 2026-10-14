@@ -5,7 +5,7 @@ import { ITEM_RECEITA } from "../../../../core/src/index";
 import { BarraProgresso } from "../../components/barra-progresso";
 import { Icone } from "../../components/icone";
 import { EditorItem, EscolherCategoria, SugestaoMedia, type AlvoEdicao } from "../../components/orcamento-folhas";
-import { EvolucaoClasses, ParticipacaoClasses } from "../../components/participacao-classes";
+import { ParticipacaoClasses } from "../../components/participacao-classes";
 import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
@@ -254,7 +254,6 @@ export default function Orcamento() {
             </Cartao>
 
             <ParticipacaoClasses painel={painel} aoMudar={recarregar} />
-            <EvolucaoClasses mesFim={mes} />
 
             {semOrcamento ? (
               <Cartao titulo="Orçamento ainda não definido">

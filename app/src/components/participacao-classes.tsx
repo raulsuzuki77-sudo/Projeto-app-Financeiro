@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { CLASSES } from "../../../core/src/index";
 import { api, type PainelOrcamento } from "../lib/api";
@@ -24,12 +24,13 @@ function Barra({ fracao, limite, cor, escala }: { fracao: number | null; limite:
   );
 }
 
-function LinhaClasse({ c, escala, aoEditar }: { c: Classe; escala: number; aoEditar?: () => void }) {
+function LinhaClasse({ c, escala, aoEditar, aoTocar }: { c: Classe; escala: number; aoEditar?: () => void; aoTocar?: () => void }) {
   const t = useTema();
   const cor = COR_DA_CLASSE.get(c.id) ?? t.primaria;
   const estado = c.limite_percentual === null ? "" : c.acima_do_limite ? ` · acima do limite de ${formatarPercentual(c.limite_percentual, 0)}` : ` · limite ${formatarPercentual(c.limite_percentual, 0)}`;
   return (
-    <Pressable accessibilityRole={aoEditar ? "button" : "text"} accessibilityLabel={`${c.rotulo}: ${formatarPercentual(c.percentual_receita)} da receita, ${formatarBRL(c.realizado_centavos)}${estado}`} onPress={aoEditar} style={({ pressed }) => ({ gap: 4, minHeight: 48, justifyContent: "center", opacity: pressed && aoEditar ? 0.7 : 1 })}>
+    <View style={{ gap: 4, minHeight: 48, justifyContent: "center" }}>
+    <Pressable accessibilityRole={aoTocar ? "button" : "text"} accessibilityLabel={`${c.rotulo}: ${formatarPercentual(c.percentual_receita)} da receita, ${formatarBRL(c.realizado_centavos)}${estado}${aoTocar ? ". Toque para ver os lançamentos." : ""}`} onPress={aoTocar ?? aoEditar} style={({ pressed }) => ({ gap: 4, opacity: pressed ? 0.7 : 1 })}>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
         <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: cor }} />
         <Text style={{ flex: 1, color: t.texto, fontSize: 15, fontWeight: "600" }}>{c.rotulo}</Text>
@@ -39,6 +40,8 @@ function LinhaClasse({ c, escala, aoEditar }: { c: Classe; escala: number; aoEdi
       <Barra fracao={c.percentual_receita} limite={c.limite_percentual} cor={c.acima_do_limite ? t.perigo : cor} escala={escala} />
       {estado ? <Text style={{ color: c.acima_do_limite ? t.perigo : t.suave, fontSize: 12 }}>{estado.slice(3)}</Text> : null}
     </Pressable>
+    {aoTocar && aoEditar ? <Pressable accessibilityRole="button" accessibilityLabel={`Editar o limite de ${c.rotulo}`} onPress={aoEditar} style={{ minHeight: 32, justifyContent: "center" }}><Text style={{ color: t.primaria, fontSize: 12, fontWeight: "600" }}>Editar limite</Text></Pressable> : null}
+    </View>
   );
 }
 
@@ -72,7 +75,7 @@ function EditorLimite({ c, aoConcluir }: { c: Classe; aoConcluir: () => void }) 
  * Participação de cada classe na receita do mês, como na planilha de acompanhamento (percentual sobre o salário), com o limite
  * máximo de cada classe. `pizza` mostra também o gráfico de pizza.
  */
-export function ParticipacaoClasses({ painel, titulo, pizza, aoMudar }: { painel: PainelOrcamento; titulo?: string; pizza?: boolean; aoMudar: () => void }) {
+export function ParticipacaoClasses({ painel, titulo, pizza, aoMudar, aoTocarClasse }: { painel: PainelOrcamento; titulo?: string; pizza?: boolean; aoMudar: () => void; aoTocarClasse?: (c: Classe) => void }) {
   const [editando, setEditando] = useState<string | null>(null);
   const classes = painel.classes.filter((c) => c.itens.length > 0 || c.id !== "sem_classe");
   const escala = Math.max(0.5, ...classes.map((c) => c.percentual_receita ?? 0), ...classes.map((c) => c.limite_percentual ?? 0));
@@ -80,42 +83,14 @@ export function ParticipacaoClasses({ painel, titulo, pizza, aoMudar }: { painel
   return (
     <Cartao titulo={titulo ?? `Classes sobre a receita, ${nomeMes(painel.mes)}`}>
       <Texto suave pequeno>{painel.base.centavos > 0 ? `Base (100%): ${formatarBRL(painel.base.centavos)}. ${painel.base.descricao}` : painel.base.descricao}</Texto>
-      {pizza && total > 0 ? <Pizza dados={classes.map((c) => ({ id: c.id, rotulo: c.rotulo, valor: Math.max(0, c.realizado_centavos), cor: COR_DA_CLASSE.get(c.id) }))} tamanho={180} legenda={8} max={8} /> : null}
+      {pizza && total > 0 ? <Pizza dados={classes.map((c) => ({ id: c.id, rotulo: c.rotulo, valor: Math.max(0, c.realizado_centavos), cor: COR_DA_CLASSE.get(c.id) }))} tamanho={180} legenda={8} max={8} aoTocar={aoTocarClasse ? (id) => { const c = classes.find((x) => x.id === id); if (c) aoTocarClasse(c); } : undefined} /> : null}
       {classes.map((c) => (
         <View key={c.id} style={{ gap: 6 }}>
-          <LinhaClasse c={c} escala={escala} aoEditar={c.id === "sem_classe" ? undefined : () => setEditando(editando === c.id ? null : c.id)} />
+          <LinhaClasse c={c} escala={escala} aoEditar={c.id === "sem_classe" ? undefined : () => setEditando(editando === c.id ? null : c.id)} aoTocar={aoTocarClasse ? () => aoTocarClasse(c) : undefined} />
           {editando === c.id ? <EditorLimite c={c} aoConcluir={() => { setEditando(null); aoMudar(); }} /> : null}
         </View>
       ))}
-      <Texto suave pequeno>Toque numa classe para definir o limite máximo. Despesas e aportes do mês somam {formatarBRL(total)}{painel.base.centavos > 0 ? `, ou ${formatarPercentual(total / painel.base.centavos)} da base` : ""}.</Texto>
-    </Cartao>
-  );
-}
-
-/** Evolução mês a mês: a participação de cada classe na receita nos últimos meses, como as colunas da planilha. */
-export function EvolucaoClasses({ mesFim, n = 6 }: { mesFim: string; n?: number }) {
-  const t = useTema();
-  const [evo, setEvo] = useState<Awaited<ReturnType<typeof api.evolucaoClasses>> | null>(null);
-  useEffect(() => {
-    api.evolucaoClasses(mesFim, n).then(setEvo, () => setEvo(null));
-  }, [mesFim, n]);
-  if (!evo) return null;
-  return (
-    <Cartao titulo="Evolução das classes (% da receita)">
-      <View style={{ flexDirection: "row", gap: 4 }}>
-        <Text style={{ flex: 1.6, color: t.suave, fontSize: 12 }}>Classe</Text>
-        {evo.meses.map((m) => <Text key={m} style={{ flex: 1, textAlign: "right", color: t.suave, fontSize: 12 }}>{nomeMes(m).slice(0, 3)}</Text>)}
-      </View>
-      {evo.classes.map((c) => (
-        <View key={c.id} accessible accessibilityLabel={`${c.rotulo}: ${evo.meses.map((m, i) => `${nomeMes(m)} ${formatarPercentual(c.percentuais[i] ?? null, 0)}`).join(", ")}`} style={{ flexDirection: "row", gap: 4, alignItems: "center", minHeight: 28 }}>
-          <Text style={{ flex: 1.6, color: t.texto, fontSize: 13 }} numberOfLines={1}>{c.rotulo}</Text>
-          {c.percentuais.map((p, i) => {
-            const acima = c.limite_percentual !== null && p !== null && p > c.limite_percentual;
-            return <Text key={evo.meses[i]} style={{ flex: 1, textAlign: "right", color: acima ? t.perigo : t.texto, fontSize: 13, fontWeight: acima ? "800" : "500" }}>{p === null ? "-" : `${(p * 100).toFixed(0)}%`}</Text>;
-          })}
-        </View>
-      ))}
-      <Texto suave pequeno>Percentuais sobre a receita de cada mês. Em vermelho, o que passou do limite definido para a classe.</Texto>
+      <Texto suave pequeno>Toque numa classe para ver os lançamentos dela; "Editar limite" define o limite máximo. Despesas e aportes do mês somam {formatarBRL(total)}{painel.base.centavos > 0 ? `, ou ${formatarPercentual(total / painel.base.centavos)} da base` : ""}.</Texto>
     </Cartao>
   );
 }

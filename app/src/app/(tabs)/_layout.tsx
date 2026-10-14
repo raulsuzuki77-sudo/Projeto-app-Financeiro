@@ -26,7 +26,7 @@ export default function LayoutAbas() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Início", tabBarIcon: icone("inicio") }} />
-      <Tabs.Screen name="extrato" options={{ title: "Extrato", tabBarIcon: icone("extrato") }} />
+      <Tabs.Screen name="extrato" options={{ title: "Extrato", href: null }} />
       {/* A revisão abre pelo botão flutuante do Início; a rota continua existindo, sem aba. */}
       <Tabs.Screen name="revisar" options={{ title: "Revisar", href: null }} />
       <Tabs.Screen name="orcamento" options={{ title: "Orçamento", tabBarIcon: icone("orcamento") }} />

@@ -8,6 +8,11 @@ export interface ResumoMensal {
   receitas_centavos: number;
   despesas_centavos: number;
   investimentos_centavos: number;
+  /** Resgates de investimentos e caixinhas que voltaram para a conta: entram no caixa do mês, mas não são renda. */
+  resgates_centavos: number;
+  /** Pix e transferências recebidos de contas do próprio usuário, tratados como transferência e por isso fora das receitas. */
+  transferencias_recebidas_centavos: number;
+  /** Receitas - despesas - aportes + resgates: o que sobra na conta no mês (deveria ser pequeno, se o mês fecha). */
   saldo_centavos: number;
   taxa_poupanca: number | null;
   pendentes: number;
@@ -48,6 +53,8 @@ export function resumoMensal(db: Db, usuarioId: string, mes: string): ResumoMens
   const estornos = (db.prepare(`SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE ${base} AND tipo = 'receita' AND natureza = 'estorno'`).get(usuarioId, mes) as { t: number }).t;
   const receitas = soma("receita") - estornos;
   const investimentos = soma("investimento");
+  const resgates = (db.prepare(`SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE ${base} AND tipo = 'transferencia' AND categoria IN ('resgate_investimento','resgate_provisao')`).get(usuarioId, mes) as { t: number }).t;
+  const recebidasDeSi = (db.prepare(`SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE ${base} AND tipo = 'transferencia' AND categoria = 'transferencia' AND descricao LIKE 'Pix recebido%'`).get(usuarioId, mes) as { t: number }).t;
   const pendentes = (db.prepare(`SELECT COUNT(*) c FROM lancamento WHERE ${base} AND status = 'pendente'`).get(usuarioId, mes) as { c: number }).c;
   const celulas = despesasLiquidas(db, usuarioId, mes);
   const soma_por = (chave: "categoria" | "natureza") => {
@@ -63,7 +70,9 @@ export function resumoMensal(db: Db, usuarioId: string, mes: string): ResumoMens
     receitas_centavos: receitas,
     despesas_centavos: despesas,
     investimentos_centavos: investimentos,
-    saldo_centavos: receitas - despesas - investimentos,
+    resgates_centavos: resgates,
+    transferencias_recebidas_centavos: recebidasDeSi,
+    saldo_centavos: receitas - despesas - investimentos + resgates,
     taxa_poupanca: receitas > 0 ? (receitas - despesas) / receitas : null,
     pendentes,
     por_categoria,
@@ -175,6 +184,10 @@ export interface FiltroLancamentos {
   busca?: string;
   /** Só lançamentos de um evento (número) ou só os que não pertencem a nenhum ("nenhum"). */
   evento?: number | "nenhum";
+  /** Só lançamentos desta natureza (fixo, eventual, assinatura...). */
+  natureza?: string;
+  /** Só lançamentos de uma destas categorias (por exemplo, todas as de uma classe ou de um grupo). */
+  categorias?: string[];
   /** Só lançamentos até esta data (inclusive), AAAA-MM-DD: deixa de fora parcelas futuras previstas. */
   ate?: string;
   ordem?: "data_desc" | "data_asc" | "valor_desc" | "valor_asc";
@@ -195,6 +208,11 @@ export function listarLancamentos(db: Db, usuarioId: string, filtro: FiltroLanca
   if (filtro.status) { cond.push("status = ?"); args.push(filtro.status); } else cond.push("status != 'cancelado'");
   if (filtro.tipo) { cond.push("tipo = ?"); args.push(filtro.tipo); }
   if (filtro.categoria) { cond.push("categoria = ?"); args.push(filtro.categoria); }
+  if (filtro.natureza) { cond.push("natureza = ?"); args.push(filtro.natureza); }
+  if (filtro.categorias) {
+    if (filtro.categorias.length === 0) cond.push("0 = 1");
+    else { cond.push(`categoria IN (${filtro.categorias.map(() => "?").join(",")})`); args.push(...filtro.categorias); }
+  }
   if (filtro.busca?.trim()) { cond.push("estabelecimento_norm LIKE ?"); args.push(`%${normalizar(filtro.busca)}%`); }
   if (filtro.evento === "nenhum") cond.push("evento_id IS NULL");
   else if (typeof filtro.evento === "number") { cond.push("evento_id = ?"); args.push(filtro.evento); }
