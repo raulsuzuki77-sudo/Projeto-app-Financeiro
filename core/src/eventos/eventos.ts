@@ -80,7 +80,9 @@ export function atualizarEvento(db: Db, usuarioId: string, id: number, p: Partia
   const novo = { nome: p.nome ?? atual.nome, tipo: p.tipo ?? atual.tipo, data_inicio: p.data_inicio ?? atual.data_inicio, data_fim: p.data_fim ?? atual.data_fim };
   validar(novo);
   db.prepare("UPDATE evento SET nome = ?, tipo = ?, data_inicio = ?, data_fim = ? WHERE id = ? AND usuario_id = ?").run(novo.nome.trim(), novo.tipo, novo.data_inicio, novo.data_fim, id, usuarioId);
-  return { vinculados: vincularPeriodo(db, usuarioId, id) };
+  // Só reavalia o vínculo quando o período muda: renomear não deve religar gastos que o usuário tirou do evento.
+  const periodoMudou = novo.data_inicio !== atual.data_inicio || novo.data_fim !== atual.data_fim;
+  return { vinculados: periodoMudou ? vincularPeriodo(db, usuarioId, id) : 0 };
 }
 
 /** Remove o evento; os lançamentos permanecem, apenas sem o vínculo. */

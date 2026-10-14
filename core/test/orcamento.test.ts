@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { abrirBancoTeste } from "./helpers";
 import {
   classificar, classeDaCategoria, coberturaDaRecorrencia, copiarOrcamento, criarEvento, criarMeta, criarRecorrencia, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento,
-  detectarRecorrentes, coberturaPrevia, exportarDados, gerarRecorrenciasDetalhado, importarTexto, interpretarConta, lancarManual, listarEventos, listarLancamentos, orcamentoVsMetas, painelOrcamento,
+  atualizarEvento, detectarRecorrentes, coberturaPrevia, exportarDados, gerarRecorrenciasDetalhado, importarTexto, interpretarConta, lancarManual, listarEventos, listarLancamentos, orcamentoVsMetas, painelOrcamento,
   registrarLancamento, removerEvento, restaurarDados, sugerirOrcamentoPelaMedia, viagensSemEvento, ITEM_RECEITA, chaveEstabelecimento, definirTitular, resumoMensal,
 } from "../src/index";
 import type { Db } from "../src/db/tipos";
@@ -214,4 +214,15 @@ test("cobertura previa: avisa antes de cadastrar que o compromisso ja esta nos e
   assert.deepEqual(c.map((x) => x.mes), ["2026-08", "2026-09"]);
   assert.deepEqual(coberturaPrevia(db, U, { descricao: "Livelo", tipo: "despesa", valor_centavos: 50000 }, "2026-10-14"), []);
   assert.deepEqual(coberturaPrevia(db, U, { descricao: "", tipo: "despesa", valor_centavos: 0 }, "2026-10-14"), []);
+});
+
+test("renomear o evento nao religa gasto removido a mao; ampliar o periodo vincula os novos", () => {
+  const db = abrirBancoTeste();
+  const g1 = gasto(db, "2026-09-02", 1000, "Almoco", { categoria: "alimentacao_restaurante" });
+  const { id } = criarEvento(db, U, { nome: "Curso", tipo: "viagem_servico", data_inicio: "2026-09-01", data_fim: "2026-09-03" });
+  definirEventoDoLancamento(db, U, (g1 as { lancamento: { id: number } }).lancamento.id, null);
+  assert.equal(atualizarEvento(db, U, id, { nome: "Curso em Goiania" }).vinculados, 0);
+  assert.equal(detalheEvento(db, U, id).total_centavos, 0);
+  gasto(db, "2026-09-05", 2000, "Jantar", { categoria: "alimentacao_restaurante" });
+  assert.equal(atualizarEvento(db, U, id, { data_fim: "2026-09-06" }).vinculados, 2);
 });
