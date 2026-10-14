@@ -1,0 +1,131 @@
+Extrato da
+Conta Investimento
+Informações detalhadas sobre
+investimentos
+MARIA EXEMPLO DA SILVA
+
+Conta investimento 000123456
+Período de 01/09/26 a 30/09/26
+Emitido em 02/10/26 10:00
+
+                                              SAC: 0800-000-0000 / Ouvidoria: 0800-000-0001
+índice
+- Sumário
+- Previdência Individual
+- Renda variável
+- Conta corrente
+- Valores em trânsito
+
+Extrato       da    Conta
+Período de 01/09/26 a 30/09/26
+                               Investimento
+                                          Distribuição da Carteira
+
+                                                 PREVIDÊNCIA                                                                                               57.65%
+                                                 RENDA VARIÁVEL                                                                                            17.33%
+
+Sumário - Distribuição em 30/09/26
+Mercados                        Saldo Bruto R$ 31/08/26                   Saldo Líquido R$ 31/08/26 2                       Saldo Bruto R$ 30/09/26                    Saldo Líquido R$ 30/09/26 1
+ Previdência                                                  2.000,00                                         2.000,00                                  2.500,00                                     2.500,00
+
+ Renda Variável                                     -                                             -                                                        751,50                                     751,50
+
+ Conta Corrente                                     -                                             -                                                        1.001,50                                     1.001,50
+
+ Valores em Trânsito                                -                                             -                                                        83,20                                     83,20
+
+ Total                                                        2.000,00                                         2.000,00                                  4.336,20                                     4.336,20
+
+Previdência Individual - Plano - 111111/PGBL
+N° Cert.              Produto         Cod. Susep                                   Data de Início de Vigência                          Tipo Renda                                    Regime Tributário
+               111111 PGBL             00000.000000/0000-00                         01/01/25                                            Renda Mensal Vitalícia                        REGRESSIVO
+Extrato       da    Conta
+Período de 01/09/26 a 30/09/26
+                               Investimento
+Previdência Individual - Posição - 111111/PGBL
+Fundo                                                                 CNPJ                                Data Referência         Quantidade de Cotas                  Cotação Atual R$              Saldo Bruto R$
+ FUNDO EXEMPLO PREV FI RF                                              11.111.111/0001-11                  30/09/26                                 1.000,00000000                    2,5000000                 2.500,00
+
+ Total                                                                                                                                                                                                          2.500,00
+
+Previdência Individual - Movimentação - 111111/FUNDO EXEMPLO PREV FI RF
+Data                   Transação                    Qtde. de Cotas                          Valor da Cota R$                   Valor Bruto R$                  IR R$                      Valor Líquido R$
+10/09/26                Contribuição                                     200,00000000                             2,40000000                          480,00               -                                          480,00
+
+Renda variável - Posição - Ações
+Código                             Ação                                  Qtde.                  Preço Fechamento R$           Preço Médio R$ 1    Saldo Bruto R$
+ ABCD3                              EMPRESA ALFA ON NM                                       10                           20,00                 -                      200,00
+
+ EFGH4                              EMPRESA BETA PN                                          5                           30,10                 -                      150,50
+
+ Total em Ações R$                                                                                                                                                 350,50
+
+                                                                        SAC: 0800-000-0000 / Ouvidoria: 0800-000-0001
+Extrato       da    Conta
+Período de 01/09/26 a 30/09/26
+                               Investimento
+Renda variável - Movimentação - Ações
+Data                 Transação            Código        Qtde.           Preço R$            Valor Bruto R$            Corretagem e Emolumentos R$                        Valor Líquido R$
+18/09/26              DEPÓSITO             ABCD3                  10                19,50                      195,00                           -                                             195,00
+
+ Total de                                                                                                -                                      -                                       -
+ Compras
+ Total de                                                                                                -                                      -                                       -
+ Vendas
+
+Renda variável - Posição - ETF
+Código                                Ativo                     Qtde.                    Preço Fechamento R$                           Preço Médio R$ 1                Saldo Bruto R$
+ IJKL11                                ETF EXEMPLO CI                                2                                        100,00                          99,00                        200,00
+
+ Total em ETF's R$                                                                                                                                                                          200,00
+
+Renda variável - Posição - Fundos Listados
+Código                                           Ativo                    Tipo               Qtde.                       Preço Fechamento R$                Preço Médio R$ 1   Saldo Bruto R$
+ MNOP11                                           FII EXEMPLO CI            FII                                       4                                50,25              -                          201,00
+
+ Total em Fundos Listados R$                                                                                                                                                                      201,00
+
+Renda variável - Movimentação - Fundos Listados
+Data               Transação             Código                 Tipo   Qtde.             Preço R$                Valor Bruto R$          Corretagem e Emolumentos R$           Valor Líquido R$
+20/09/26            RENDIMENTO               MNOP11                 FII                 4              -                               1,50                       -                                      1,50
+
+ Total de
+ Proventos                                                                                                                          1,50                                                              1,50
+
+Conta corrente - Posição
+Data                                                                              Valor financeiro R$
+ 30/09/26                                                                                                                                                                                       1.001,50
+
+Conta corrente - Movimentação
+Data               Descrição                                                                                                     Movimentação R$                Saldo conta investimentos R$
+ 01/09/26           Saldo Anterior                                                                                                                                                        -
+15/09/26            RECEBIMENTO TRANSFERÊNCIA - FULANO DE TAL                                                                                          1.000,00                                     1.000,00
+
+20/09/26            RENDIMENTOS - À VISTA s/ FII EXEMPLO CI - MNOP11                                                                                       1,50                                         1.001,50
+
+ 30/09/26           Saldo Final + Rendimento Provisionado de Saldo Remunerado                                                                 -                                                 1.001,50
+
+ Total de
+ Créditos                                                                                                                                          1.001,50
+
+Valores em trânsito - Renda Variável
+Data Liquidação                                   Descrição                                                                                                             Valor R$   1
+01/10/26                                           COMPRA - IJKL11                                                                                                                             -400,00
+
+ N/D                                               DIVIDENDOS - EMPRESA ALFA ON NM                                                                                                                   3,20
+
+ Total                                                                                                                                                                                         -396,80
+
+Valores em trânsito - Previdência
+Data Liquidação                                                                 Descrição                                                            Valor R$      1
+30/09/26                                                                         Contribuição                                                                                                     480,00
+
+ Total                                                                           SAC: 0800-000-0000 / Ouvidoria: 0800-000-0001
+                                                                                                                                                                                                  480,00
+Disclaimers
+Renda Variável - Posição - Ações
+ 1. Com o objetivo de estabelecer um padrão único de cálculo para rentabilidade, indicamos que as posições em investimentos de renda variável posteriores a 30/04/2008 passaram a ser indicadas
+    com o preço de fechamento do mercado.
+
+Fale Conosco
+  ouvidoria@btgpactual.com

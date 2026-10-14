@@ -1,0 +1,39 @@
+                                                                                                                             BTG Pactual US Capital, LLC
+                   Account Statement                                                                                         601 Rua Exemplo
+                   September 01, 2026 - September 30, 2026                                                                   57TH FLOOR
+Account Number:EXEM-001-ZZZZ009876                                 Account Name: MARIA EXEMPLO DA SILVA
+
+                                                                                                                              Valuation Summary                                      This Period           This Year
+                                                                                                                              Beginning Account Value                                     $0.00                 0.00
+                                                                                                                              Deposits                                                    $3,000.00             $3,000.00
+                                                                                                                              Ending Account Value                                        $2,500.75             $2,500.75
+Asset Allocation Summary Value Last Period Value This Period
+Cash & Cash Equivalents $0.00 $0.75
+Equities $0.00 $0.00
+Options $0.00 $0.00
+Fixed Income $0.00 $2,500.00
+Mutual Funds $0.00 $0.00
+Other Assets $0.00 $0.00
+ Page 1 of 3
+ Clearing and execution services provided by DriveWealth, LLC member FINRA and SIPC.
+HOLDINGS
+FixedIncome
+Description Symbol Quantity Unit Cost Total Cost Market Price Market Value Gain/ (Loss) A/C Type
+United States Treasury Bills 0% BILL 30/12/2026 USD 123456AB1 1000 0.00 0.00 98.500000 985.00 985.00 M
+United States Treasury Notes 4% NTS 15/05/2030 USD 123456CD2 1500 0.00 0.00 101.000000 1,515.00 1,515.00 M
+(Notes 05/30)
+MoneyMarket funds
+Description Symbol Quantity Unit Cost Total Cost Market Price Market Value Gain/ (Loss) A/C Type
+DW Bank Sweep (FDIC INSURED DEPOSIT NOT COVERED DWBDS 0.75 1.00 0.75 1.00 0.75 0.00 M
+BY SIPC)
+ACTIVITY
+Trade Date Settle Date Currency Activity Type Symbol / Description Quantity Price Amount
+09/02/2026 09/02/2026 USD DEP ACH deposit 3,000.00
+09/24/2026 09/24/2026 USD ACATS 123456AB1 - United States Treasury Bills 0% BILL 30/12/2026 USD - 724:ACAT- 1000 0.00 0.00
+ I;SC50;00000000000001
+ Page 2 of 3
+ Clearing and execution services provided by DriveWealth, LLC member FINRA and SIPC.
+09/24/2026 09/24/2026 USD ACATC 724:ACAT-I;SC40;00000000000001: 0.75
+SWEEP ACTIVITY
+Trade Date Settle Date Currency Activity Type Symbol / Description Quantity Price Amount
+09/24/2026 09/24/2026 USD BUY DWBDS - DW Bank Sweep (FDIC INSURED DEPOSIT NOT COVERED BY SIPC) - Debit Sweep Program 0.75 1.00 (0.75)

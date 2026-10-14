@@ -64,6 +64,8 @@ export function semearDemonstracao(db: Db): void {
   registrarLancamento(db, { usuario_id: U, tipo: "despesa", valor_centavos: 89000, descricao: "Passagem aérea Azul", categoria: "viagem", forma_pagamento: "credito", data_local: dd(3), hora_local: null, precisao_horario: "desconhecido", origem: "csv", referencia: "demo-viagem-atual" });
   for (const [dia, valor, desc, cat] of [[10, 76000, "Pousada Brisa", "viagem"], [11, 18500, "Restaurante Mar Azul", "alimentacao_restaurante"], [12, 9200, "Passeio de buggy", "lazer_passeios"], [14, 14300, "Bar Pôr do Sol", "lazer_bar"]] as [number, number, string, string][]) h(1, dia, valor, desc, cat);
   criarEvento(db, U, { nome: "Férias em Jericoacoara", tipo: "ferias", data_inicio: `${mesAnterior(1)}-10`, data_fim: `${mesAnterior(1)}-16`, vincular: true });
+  // Compra parcelada em 4x (fictícia): a primeira parcela é real e as três seguintes ficam previstas nos meses seguintes.
+  registrarLancamento(db, { usuario_id: U, tipo: "despesa", valor_centavos: 62500, descricao: "Notebook Loja Tech", categoria: "compras_diversas", forma_pagamento: "credito", cartao_id: 1, parcela_atual: 1, parcela_total: 4, data_local: dd(2), hora_local: null, precisao_horario: "desconhecido", origem: "csv", referencia: "demo-parcelado" });
   // Orçamento (valores fictícios): padrão de todos os meses e receita
   const plano: [string, number][] = [[ITEM_RECEITA, 520000], ["moradia", 250000], ["alimentacao_supermercado", 50000], ["alimentacao_restaurante", 20000], ["lazer_assinaturas", 3000], ["clube_pontos", 13000], ["investimento_previdencia", 15000], ["transporte_combustivel", 30000], ["viagem", 40000], ["saude", 15000]];
   for (const [item, v] of plano) definirOrcamento(db, U, "*", item, v);

@@ -198,3 +198,23 @@ Esquema do banco versão 3 (tabelas `evento`, `orcamento`, `classe_categoria`; c
 
 Interface: campo de valor com máscara em todos os campos em reais (digitam-se números; vírgula e pontos de milhar entram sozinhos). Fora de escopo por falta de amostra: extrato da corretora (ver resposta ao usuário: proposta de patrimônio mensal).
 
+## 16. Correções e ampliações após o uso do app na versão para computador (14/10/2026)
+
+Totais consistentes. Causa do problema relatado (totais diferentes ao trocar entre categoria, grupo e classe): a visão por categoria e por grupo omitia "Sem categoria", a visão por classe vinha do orçamento (incluía aportes e não incluía o sem categoria) e os estornos eram abatidos na categoria, mas não na natureza. Correção: as despesas do mês saem de uma única matriz (categoria x natureza), já líquidas de estornos, e as três visões (categoria, grupo, classe), o total por natureza e o total de despesas somam exatamente o mesmo valor; "Sem categoria" aparece nas três. O calendário também abate os estornos. Aportes e transferências ficam fora do gráfico por definição. Teste de regressão em `core/test/consistencia.test.ts`.
+
+Categoria de receita em despesa (Painel). Causa provável: uma regra aprendida ao classificar um Pix RECEBIDO (por exemplo como "Salário e trabalho") passava a valer também para o Pix ENVIADO ao mesmo favorecido, porque a regra não distinguia tipo nem direção. Correções: (a) o classificador nunca aplica categoria de receita a saída, nem categoria de gasto a entrada (regras do usuário, repetição, histórico e regras base); (b) ao reclassificar, saída com categoria de receita vira entrada, e entrada com categoria de gasto vira estorno (devolução que abate o gasto, sem contar como renda); (c) migração automática na abertura do banco: saídas com categoria de receita e entradas com categoria de gasto (que não sejam estorno) voltam a "Sem categoria", pendentes, com motivo e registro na auditoria; idempotente. Decisão que cabe ao usuário: o app não tem como saber a categoria correta desses itens.
+
+Eventos. O vínculo automático pelo período passou a valer só para gastos de alta probabilidade: hospedagem e passagens, comer e beber fora, passeios e deslocamento por aplicativo. Mercado, compras, saúde e o restante aparecem em "Conferir gastos do período", para o usuário incluir os que foram da viagem. Nunca são sugeridos: entradas (salário), contas da casa (aluguel, condomínio, energia, plano de saúde, seguros, sindicato, impostos), assinaturas, parcelas, aportes, transferências, boletos e compromissos detectados como recorrentes. Isso evita atribuir à viagem o salário e as contas da casa quando o período atravessa a virada do mês. O vínculo manual não depende de data: qualquer gasto pode ser vinculado ao evento (reserva de hotel feita meses antes), com busca e ordenação (primeiro viagens sem evento, depois os mais próximos do período).
+
+Recorrentes. O usuário pode recusar a sugestão ("Não é recorrente"): o compromisso deixa de ser sugerido e de ser marcado no extrato, com opção de desfazer e de restaurar.
+
+Extrato. Ordenação por data (mais recentes ou mais antigos) e por valor (maior ou menor), e filtro por evento (todos, sem evento ou um evento; neste caso mostra o evento inteiro, de todos os meses).
+
+Orçamento. As classes abrem recolhidas (só o total) e expandem para os itens por valor decrescente; há "Expandir tudo" e "Recolher tudo".
+
+Compras parceladas (fluxo de caixa). Antes, o valor da compra parcelada digitada ("3000 em 10x") entrava inteiro no mês da compra. Agora cada mês entra com a sua parcela: a compra digitada gera as parcelas mensais (o resto dos centavos vai para as primeiras, e a soma fecha com o total); a parcela lida em fatura ou CSV projeta as seguintes como "previstas". Quando a fatura do mês seguinte traz a parcela, ela substitui a previsão (contada uma só vez, mesmo com data diferente); parcelas antecipadas no mesmo dia, em qualquer ordem, não geram previsões sobrando. As previstas herdam a categoria da primeira parcela, não servem de prova de classificação, e se a primeira estiver pendente as demais acompanham e só aparecem na revisão quando o mês chega. O Orçamento mostra o fluxo das parcelas já comprometidas por mês. Limitação: a conciliação supõe o mesmo valor (diferença de até 1%) e a mesma descrição base; parcelas de valores diferentes na mesma compra não se conciliam sozinhas.
+
+Revisão. A aba Revisar foi substituída por um botão circular flutuante no Início: neutro quando não há pendências; laranja, com anel pulsante e contador, quando há. Conta pendências de todos os meses até hoje (parcelas futuras previstas não entram).
+
+Liberdade financeira: ver o item 17.
+

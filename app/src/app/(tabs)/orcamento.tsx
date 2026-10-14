@@ -68,12 +68,16 @@ function LinhaItem({ item, onPress }: { item: Item; onPress: () => void }) {
   );
 }
 
-function SecaoClasse({ classe, onItem }: { classe: Classe; onItem: (i: Item) => void }) {
+function SecaoClasse({ classe, aberta, onAlternar, onItem }: { classe: Classe; aberta: boolean; onAlternar: () => void; onItem: (i: Item) => void }) {
   const t = useTema();
   return (
     <Cartao>
       <View style={{ gap: 6 }}>
-        <Text accessibilityRole="header" style={{ color: t.primaria, fontSize: 18, fontWeight: "800" }}>{classe.rotulo}</Text>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: aberta }} accessibilityLabel={`${classe.rotulo}: ${aberta ? "recolher" : "expandir"} (${classe.itens.length} item(ns))`} onPress={onAlternar} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 }}>
+          <Text accessibilityRole="header" style={{ color: t.primaria, fontSize: 18, fontWeight: "800", flex: 1 }}>{classe.rotulo}</Text>
+          <Text style={{ color: t.suave, fontSize: 13, marginRight: 8 }}>{classe.itens.length} item(ns)</Text>
+          <View style={{ transform: [{ rotate: aberta ? "90deg" : "0deg" }] }}><Icone nome="seta" cor={t.suave} tamanho={20} /></View>
+        </Pressable>
         {classe.itens.length > 0 ? (
           <>
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -86,7 +90,7 @@ function SecaoClasse({ classe, onItem }: { classe: Classe; onItem: (i: Item) => 
           <Texto suave pequeno>{`Sem itens neste mês. ${classe.exemplos}.`}</Texto>
         )}
       </View>
-      {classe.itens.length > 0 ? (
+      {aberta && classe.itens.length > 0 ? (
         <View style={{ marginLeft: 14, paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: t.borda, gap: 4 }}>
           {classe.itens.map((i, k) => (
             <View key={i.categoria} style={k > 0 ? { borderTopWidth: 1, borderTopColor: t.borda } : undefined}>
@@ -111,10 +115,11 @@ export default function Orcamento() {
   const [ocupado, setOcupado] = useState(false);
   const [confirmaCopia, setConfirmaCopia] = useState(false);
   const [todosAlertas, setTodosAlertas] = useState(false);
+  const [abertas, setAbertas] = useState<Record<string, boolean>>({});
 
   const { dados, erro, carregando, recarregar } = useDados(async () => {
-    const [painel, vs] = await Promise.all([api.orcamento(mes), api.orcamentoVsMetas(mes)]);
-    return { painel, vs };
+    const [painel, vs, parcelas] = await Promise.all([api.orcamento(mes), api.orcamentoVsMetas(mes), api.parcelasFuturas(mesAtual(), 6)]);
+    return { painel, vs, parcelas };
   }, [mes]);
   useBotaoAtualizar(recarregar);
 
@@ -237,7 +242,7 @@ export default function Orcamento() {
                   <Botao rotulo="Editar receita" secundario pequeno onPress={editarReceita} />
                 </View>
               )}
-              {painel.pendentes > 0 ? <Aviso tipo="info">{`${painel.pendentes} lançamento(s) pendente(s) de revisão entram nos totais realizados; confirme na aba Revisar.`}</Aviso> : null}
+              {painel.pendentes > 0 ? <Aviso tipo="info">{`${painel.pendentes} lançamento(s) pendente(s) de revisão entram nos totais realizados; confirme no botão de revisão do Início.`}</Aviso> : null}
             </Cartao>
 
             {semOrcamento ? (
@@ -271,9 +276,22 @@ export default function Orcamento() {
 
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <Text accessibilityRole="header" style={{ color: t.texto, fontSize: 18, fontWeight: "700", flex: 1 }}>Por classe</Text>
+              <Botao rotulo={painel.classes.every((c) => abertas[c.id]) ? "Recolher tudo" : "Expandir tudo"} pequeno secundario onPress={() => setAbertas(painel.classes.every((c) => abertas[c.id]) ? {} : Object.fromEntries(painel.classes.map((c) => [c.id, true])))} />
               <Botao rotulo="Adicionar item" icone="mais" pequeno secundario onPress={() => setEscolhendo(true)} />
             </View>
-            {painel.classes.map((c) => <SecaoClasse key={c.id} classe={c} onItem={(i) => setAlvo(alvoDoItem(i, c.id))} />)}
+            {painel.classes.map((c) => <SecaoClasse key={c.id} classe={c} aberta={Boolean(abertas[c.id])} onAlternar={() => setAbertas({ ...abertas, [c.id]: !abertas[c.id] })} onItem={(i) => setAlvo(alvoDoItem(i, c.id))} />)}
+
+            {dados && dados.parcelas.length > 0 ? (
+              <Cartao titulo="Parcelas já comprometidas (fluxo de caixa)">
+                <Texto suave pequeno>Compras parceladas: cada mês entra com a sua parcela. Valores previstos até a fatura do mês chegar.</Texto>
+                {dados.parcelas.map((p) => (
+                  <View key={p.mes} style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                    <Text style={{ color: t.texto, fontSize: 15 }}>{nomeMes(p.mes)} ({p.quantidade} parcela(s))</Text>
+                    <Text style={{ color: t.texto, fontSize: 15, fontWeight: "700" }}>{formatarBRL(p.total_centavos)}</Text>
+                  </View>
+                ))}
+              </Cartao>
+            ) : null}
 
             <Cartao titulo="Ações do mês">
               {confirmaCopia ? (

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { abrirBancoTeste } from "./helpers";
-import { alterarLancamento, classificarEmLote, criarCartao, importarTexto, lancarManual, listarLancamentos, parcelasFuturas, resumoMensal, somarMeses } from "../src/index";
+import { alterarLancamento, classificarEmLote, criarCartao, importarTexto, lancarManual, listarLancamentos, parcelasFuturas, processarMensagem, resumoMensal, somarMeses } from "../src/index";
 
 const U = "u";
 const mes = (db: ReturnType<typeof abrirBancoTeste>, m: string) => resumoMensal(db, U, m).despesas_centavos;
@@ -82,4 +82,17 @@ test("fluxo de caixa das parcelas futuras, mes a mes", () => {
   lancarManual(db, U, { tipo: "despesa", valor_centavos: 20000, descricao: "Fone", categoria: "compras_diversas", data_local: "2026-10-12", parcelas: 2 }, "s2");
   const f = parcelasFuturas(db, U, "2026-11");
   assert.deepEqual(f.map((m) => [m.mes, m.total_centavos, m.quantidade]), [["2026-11", 30000, 2], ["2026-12", 20000, 1]]);
+});
+
+test("mensagem de texto com parcelas (\"3000 em 10x\"): 10 meses, cada um com a sua parcela", () => {
+  const db = abrirBancoTeste();
+  criarCartao(db, U, { apelido: "nomad" });
+  processarMensagem(db, { id: "t1", usuario_id: U, texto: "notebook 3000 em 10x nomad 10/10", recebida_em: new Date("2026-10-14T15:00:00Z") });
+  const l = listarLancamentos(db, U, { ordem: "data_asc" }) as { valor_centavos: number; data_local: string }[];
+  assert.equal(l.length, 10);
+  assert.equal(l.reduce((s, x) => s + x.valor_centavos, 0), 300000);
+  assert.equal(l[0]!.data_local, "2026-10-10");
+  assert.equal(l[9]!.data_local, "2027-07-10");
+  assert.equal(resumoMensal(db, U, "2026-10").despesas_centavos, 30000);
+  assert.equal(resumoMensal(db, U, "2026-11").despesas_centavos, 30000);
 });

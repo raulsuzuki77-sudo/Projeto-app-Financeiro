@@ -1,4 +1,5 @@
 import {
+  candidatosParaEvento, ignorarRecorrente, listarRecorrentesIgnoradas, parcelasFuturas, restaurarRecorrenteIgnorada, sugestoesDoPeriodo, vincularLancamentos, visoesDeDespesa,
   alterarLancamento, atualizarEvento, copiarOrcamento, coberturaDaRecorrencia, coberturaPrevia, criarEvento, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento, detectarRecorrentes,
   gerarRecorrenciasDetalhado, listarEventos, orcamentoVsMetas, painelOrcamento, removerEvento, removerOrcamento, sugerirOrcamentoPelaMedia, viagensSemEvento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
   criarRecorrencia, definirTitular, editarLancamento, excluirLancamento, gerarRecorrencias, lancarManual, lerPremissas, listarCartoes, listarLancamentos, listarMetas,
@@ -79,6 +80,23 @@ export const api = {
   definirEventoDoLancamento: async (lancamentoId: number, eventoId: number | null) => definirEventoDoLancamento(obterBanco(), USUARIO, lancamentoId, eventoId),
   /** Gastos de viagem e hospedagem ainda sem evento: a tela pergunta o período da viagem. */
   viagensSemEvento: async () => viagensSemEvento(obterBanco(), USUARIO),
+  /** Gastos do período do evento que não foram vinculados sozinhos (mercado, compras...) para o usuário conferir. */
+  sugestoesDoPeriodo: async (eventoId: number) => sugestoesDoPeriodo(obterBanco(), USUARIO, eventoId),
+  /** Gastos que podem ser vinculados a mão ao evento, em qualquer data (reserva antecipada, por exemplo). */
+  candidatosParaEvento: async (eventoId: number, busca?: string) => candidatosParaEvento(obterBanco(), USUARIO, eventoId, { busca }),
+  vincularLancamentos: async (eventoId: number, ids: number[]) => vincularLancamentos(obterBanco(), USUARIO, eventoId, ids),
+
+  /** Marca o compromisso como NÃO recorrente: deixa de ser sugerido. */
+  ignorarRecorrente: async (tipo: "despesa" | "receita" | "investimento", chave: string, descricao: string) => ignorarRecorrente(obterBanco(), USUARIO, tipo, chave, descricao),
+  restaurarRecorrenteIgnorada: async (tipo: string, chave: string) => restaurarRecorrenteIgnorada(obterBanco(), USUARIO, tipo, chave),
+  recorrentesIgnoradas: async () => listarRecorrentesIgnoradas(obterBanco(), USUARIO),
+
+  /** As mesmas despesas do mês por categoria, grupo e classe: as três visões somam o mesmo total. */
+  visoesDespesa: async (mes: string) => visoesDeDespesa(obterBanco(), USUARIO, mes),
+  /** Parcelas já comprometidas nos meses seguintes (fluxo de caixa das compras parceladas). */
+  parcelasFuturas: async (mesInicial: string, n = 6) => parcelasFuturas(obterBanco(), USUARIO, mesInicial, n),
+  /** Quantos lançamentos aguardam revisão (parcelas futuras previstas não contam). */
+  contarPendentes: async () => (listarLancamentos(obterBanco(), USUARIO, { status: "pendente", ate: hoje(), limite: 2000 }) as unknown[]).length,
 
   orcamento: async (mes: string) => painelOrcamento(obterBanco(), USUARIO, mes),
   /** `mes` = "*" vale para todos os meses sem valor próprio; `item` = categoria ou "__receita". */

@@ -17,11 +17,12 @@ export default function Recorrentes() {
   const toast = useToast();
   const { dados: pacote, erro, carregando, recarregar } = useDados(async () => {
     const lista = await api.recorrencias();
-    const [detectadas, coberturas] = await Promise.all([api.recorrentesDetectadas(), Promise.all(lista.map(async (r) => [r.id, await api.coberturaRecorrencia(r.id)] as const))]);
-    return { lista, detectadas, coberturas: new Map(coberturas) };
+    const [detectadas, coberturas, ignoradas] = await Promise.all([api.recorrentesDetectadas(), Promise.all(lista.map(async (r) => [r.id, await api.coberturaRecorrencia(r.id)] as const)), api.recorrentesIgnoradas()]);
+    return { lista, detectadas, ignoradas, coberturas: new Map(coberturas) };
   });
   const dados = pacote?.lista ?? null;
   const detectadas = (pacote?.detectadas ?? []).filter((d) => !d.cadastrada);
+  const [verIgnoradas, setVerIgnoradas] = useState(false);
   useBotaoAtualizar(recarregar);
 
   const [tipo, setTipo] = useState<Tipo>("despesa");
@@ -117,6 +118,17 @@ export default function Recorrentes() {
                   </View>
                   <Text style={{ color: t.texto, fontSize: 15, fontWeight: "700" }}>{formatarBRL(d.valor_centavos)}</Text>
                 </View>
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  <Botao
+                    rotulo="Não é recorrente"
+                    pequeno
+                    perigo
+                    onPress={async () => {
+                      await api.ignorarRecorrente(d.tipo, d.chave, d.descricao);
+                      await recarregar();
+                      toast({ texto: `${d.descricao}: não será mais sugerido como recorrente.`, acao: { rotulo: "Desfazer", fazer: async () => { await api.restaurarRecorrenteIgnorada(d.tipo, d.chave); await recarregar(); } } });
+                    }}
+                  />
                 {!d.encerrada ? (
                   <Botao
                     rotulo="Cadastrar como recorrente"
@@ -134,8 +146,24 @@ export default function Recorrentes() {
                     }}
                   />
                 ) : null}
+                </View>
               </View>
             ))}
+          </Cartao>
+        ) : null}
+
+        {(pacote?.ignoradas.length ?? 0) > 0 ? (
+          <Cartao titulo="Marcadas como não recorrentes" acao={<Chip rotulo={verIgnoradas ? "Ocultar" : `Mostrar (${pacote!.ignoradas.length})`} onPress={() => setVerIgnoradas(!verIgnoradas)} />}>
+            {verIgnoradas ? (
+              pacote!.ignoradas.map((i) => (
+                <View key={`${i.tipo}|${i.chave}`} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <Text style={{ color: t.texto, fontSize: 14, flex: 1 }} numberOfLines={2}>{i.descricao || i.chave}</Text>
+                  <Botao rotulo="Voltar a sugerir" pequeno secundario onPress={async () => { await api.restaurarRecorrenteIgnorada(i.tipo, i.chave); await recarregar(); }} />
+                </View>
+              ))
+            ) : (
+              <Texto suave pequeno>Estes compromissos não são mais sugeridos nem marcados no extrato.</Texto>
+            )}
           </Cartao>
         ) : null}
 

@@ -21,6 +21,15 @@ export interface LancamentoManual {
   valor_informado?: "total" | "parcela";
 }
 
+/** Divide o total em parcelas em centavos; o resto vai para as primeiras parcelas e a soma fecha exatamente com o total. */
+export function dividirEmParcelas(totalCentavos: number, parcelas: number): number[] {
+  const base = Math.floor(totalCentavos / parcelas);
+  const resto = totalCentavos - base * parcelas;
+  const valores = Array.from({ length: parcelas }, (_, i) => base + (i < resto ? 1 : 0));
+  if (valores.some((v) => v <= 0)) throw new Error("O valor é pequeno demais para esse número de parcelas.");
+  return valores;
+}
+
 /** Lançamento digitado no formulário. `referencia` deve ser única por envio (impede duplicar com duplo toque). */
 export function lancarManual(db: Db, usuarioId: string, l: LancamentoManual, referencia: string, agora: Date = new Date()): ResultadoRegistro {
   if (!Number.isInteger(l.valor_centavos) || l.valor_centavos <= 0) throw new Error("Informe um valor maior que zero.");
@@ -42,12 +51,7 @@ export function lancarManual(db: Db, usuarioId: string, l: LancamentoManual, ref
   let valores: number[] | undefined;
   if (parcelas > 1) {
     if (l.valor_informado === "parcela") valores = Array<number>(parcelas).fill(l.valor_centavos);
-    else {
-      const base = Math.floor(l.valor_centavos / parcelas);
-      const resto = l.valor_centavos - base * parcelas;
-      valores = Array.from({ length: parcelas }, (_, i) => base + (i < resto ? 1 : 0));
-      if (valores.some((v) => v <= 0)) throw new Error("O valor é pequeno demais para esse número de parcelas.");
-    }
+    else valores = dividirEmParcelas(l.valor_centavos, parcelas);
   }
   const hoje = data === local.data_local;
   const hora = l.hora_local !== undefined ? l.hora_local : hoje ? local.hora_local : null;

@@ -31,3 +31,6 @@ export * from "./classification/categorias";
 export * from "./ingest/manual";
 export * from "./eventos/eventos";
 export * from "./orcamento/orcamento";
+export * from "./investimentos/tipos";
+export * from "./investimentos/leitor";
+export * from "./investimentos/servico";

@@ -1,11 +1,11 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useNavigation, useRouter } from "expo-router";
+import { useLayoutEffect, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import { chaveEstabelecimento, rotuloCategoria } from "../../../../core/src/index";
 import { SeletorCategoria } from "../../components/seletor-categoria";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
-import { Aviso, Botao, Cartao, Chip, GrupoChips, Texto } from "../../components/ui";
+import { Aviso, Botao, BotaoIcone, Cartao, Chip, GrupoChips, Texto } from "../../components/ui";
 import { useBotaoAtualizar, useDados } from "../../hooks/useDados";
 import { api, type Lancamento, type Sugestao } from "../../lib/api";
 import { dataBR, formatarBRL } from "../../lib/format";
@@ -22,9 +22,17 @@ export default function Revisar() {
   const router = useRouter();
   const toast = useToast();
   const [escolhendo, setEscolhendo] = useState<Lancamento | null>(null);
+  const navigation = useNavigation();
+  // A revisão abre pelo botão flutuante do Início: o cabeçalho traz a seta de volta em vez do menu.
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerLeft: () => <BotaoIcone icone="esquerda" rotulo="Voltar ao início" onPress={() => router.replace("/")} /> });
+  }, [navigation, router]);
 
   const { dados, erro, carregando, recarregar } = useDados(async (): Promise<Item[]> => {
-    const pendentes = await api.lancamentos({ status: "pendente", limite: 300 });
+    const d = new Date();
+    const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    // Parcelas futuras previstas aparecem quando o mês chega; não entram na revisão antes disso.
+    const pendentes = await api.lancamentos({ status: "pendente", ate: hoje, limite: 300 });
     // Estabelecimentos com mais pendentes primeiro: classificar um resolve todos os parecidos.
     const grupo = (l: Lancamento) => `${l.natureza === "estorno" || l.tipo === "despesa" ? "d" : l.tipo}:${chaveEstabelecimento(l.estabelecimento_norm) || l.id}`;
     const tamanho = new Map<string, number>();

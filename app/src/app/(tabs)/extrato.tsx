@@ -11,6 +11,13 @@ import { api, type Lancamento } from "../../lib/api";
 import { dataBR, formatarBRL, mesAtual } from "../../lib/format";
 
 type Filtro = "todos" | "despesa" | "receita";
+type Ordem = "data_desc" | "data_asc" | "valor_desc" | "valor_asc";
+const ORDENS: { id: Ordem; rotulo: string }[] = [
+  { id: "data_desc", rotulo: "Mais recentes" },
+  { id: "data_asc", rotulo: "Mais antigos" },
+  { id: "valor_desc", rotulo: "Maior valor" },
+  { id: "valor_asc", rotulo: "Menor valor" },
+];
 
 export default function Extrato() {
   const t = useTema();
@@ -19,11 +26,14 @@ export default function Extrato() {
   const [mes, setMes] = useState(mesAtual());
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
+  const [ordem, setOrdem] = useState<Ordem>("data_desc");
+  const [evento, setEvento] = useState<number | "nenhum" | null>(null);
+  const [opcoes, setOpcoes] = useState(false);
 
   const { dados: pacote, erro, carregando, recarregar } = useDados(async () => {
-    const [lancamentos, recorrentes, eventos] = await Promise.all([api.lancamentos({ mes, tipo: filtro === "todos" ? undefined : filtro, busca, limite: 800 }), api.recorrentesDetectadas(), api.eventos()]);
+    const [lancamentos, recorrentes, eventos] = await Promise.all([api.lancamentos({ mes: typeof evento === "number" ? undefined : mes, tipo: filtro === "todos" ? undefined : filtro, busca, ordem, evento: evento ?? undefined, limite: 800 }), api.recorrentesDetectadas(), api.eventos()]);
     return { lancamentos, recorrentes: new Set(recorrentes.filter((r) => !r.encerrada).map((r) => `${r.tipo}|${r.chave}`)), eventos: new Map(eventos.map((e) => [e.id, e.nome])) };
-  }, [mes, filtro, busca]);
+  }, [mes, filtro, busca, ordem, evento]);
   const dados = pacote?.lancamentos ?? null;
   useBotaoAtualizar(recarregar);
 
@@ -54,6 +64,21 @@ export default function Extrato() {
         <Chip rotulo="Saídas" ativo={filtro === "despesa"} onPress={() => setFiltro("despesa")} />
         <Chip rotulo="Entradas" ativo={filtro === "receita"} onPress={() => setFiltro("receita")} />
       </GrupoChips>
+      <View style={{ gap: 8 }}>
+        <Chip rotulo={opcoes ? "Ocultar ordenação e filtros" : `Ordenar e filtrar${ordem !== "data_desc" || evento !== null ? " (ativos)" : ""}`} ativo={ordem !== "data_desc" || evento !== null} onPress={() => setOpcoes(!opcoes)} />
+        {opcoes ? (
+          <View style={{ gap: 10 }}>
+            <Texto suave pequeno>Ordenar por</Texto>
+            <GrupoChips>{ORDENS.map((o) => <Chip key={o.id} rotulo={o.rotulo} ativo={ordem === o.id} onPress={() => setOrdem(o.id)} />)}</GrupoChips>
+            <Texto suave pequeno>Evento (viagem, férias){typeof evento === "number" ? ": mostrando o evento inteiro, de todos os meses" : ""}</Texto>
+            <GrupoChips>
+              <Chip rotulo="Todos" ativo={evento === null} onPress={() => setEvento(null)} />
+              <Chip rotulo="Sem evento" ativo={evento === "nenhum"} onPress={() => setEvento("nenhum")} />
+              {[...(pacote?.eventos.entries() ?? [])].map(([id, nome]) => <Chip key={id} rotulo={nome} ativo={evento === id} onPress={() => setEvento(id)} />)}
+            </GrupoChips>
+          </View>
+        ) : null}
+      </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <Texto suave pequeno>Saídas: {formatarBRL(totais.saidas)}</Texto>
         <Texto suave pequeno>Entradas: {formatarBRL(totais.entradas)}</Texto>
@@ -79,7 +104,7 @@ export default function Extrato() {
               {dataBR(l.data_local)}{l.hora_local !== null ? ` · ${String(l.hora_local).padStart(2, "0")}h` : ""}
             </Text>
             <Text style={{ color: l.status === "pendente" ? t.alerta : t.suave, fontSize: 13 }} numberOfLines={1}>
-              {rotuloCompleto(l.categoria)}{l.status === "pendente" ? " (pendente)" : ""}
+              {rotuloCompleto(l.categoria)}{l.parcela_total ? ` · parcela ${l.parcela_atual ?? "?"}/${l.parcela_total}` : ""}{(l as { prevista?: number }).prevista ? " (prevista)" : ""}{l.status === "pendente" ? " (pendente)" : ""}
             </Text>
             {pacote?.recorrentes.has(`${l.tipo}|${chaveEstabelecimento(l.estabelecimento_norm)}`) || pacote?.eventos.has(l.evento_id ?? -1) ? (
               <Text style={{ color: t.primaria, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>

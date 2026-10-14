@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { grupoDaCategoria, rotuloCategoria, ROTULO_TIPO_EVENTO } from "../../../../core/src/index";
 import { FormularioEvento } from "../../components/formulario-evento";
+import { SugestoesDoPeriodo, VincularGastos } from "../../components/evento-vinculos";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
 import { Aviso, Botao, Cartao, Texto } from "../../components/ui";
@@ -28,6 +29,14 @@ export default function Evento() {
   const numero = Number(id);
   const { dados, erro, carregando, recarregar } = useDados(() => api.detalheEvento(numero), [numero]);
   useBotaoAtualizar(recarregar);
+  const [vinculando, setVinculando] = useState(false);
+  const [versao, setVersao] = useState(0);
+  const aposVincular = async (n: number) => {
+    setVinculando(false);
+    setVersao((v) => v + 1);
+    await recarregar();
+    toast({ texto: n > 0 ? `${n} gasto(s) vinculado(s) ao evento.` : "Nenhum gasto foi alterado." });
+  };
   const [editando, setEditando] = useState(false);
 
   const evento = dados?.evento;
@@ -118,6 +127,14 @@ export default function Evento() {
             />
           </Cartao>
         ) : null}
+
+        <SugestoesDoPeriodo eventoId={numero} versao={versao} aoVincular={aposVincular} />
+
+        <Cartao titulo="Vincular outros gastos">
+          <Texto suave pequeno>Reserva de hotel, passagem e outros gastos de viagem feitos em outra data também pertencem ao evento. Escolha-os aqui, em qualquer data.</Texto>
+          <Botao rotulo="Vincular gastos de qualquer data" icone="mais" secundario onPress={() => setVinculando(true)} />
+        </Cartao>
+        <VincularGastos visivel={vinculando} eventoId={numero} aoFechar={() => setVinculando(false)} aoVincular={aposVincular} />
 
         <Cartao titulo="Gastos por categoria">
           {grupos.length === 0 ? <Texto suave>Nenhum gasto vinculado a este evento.</Texto> : null}

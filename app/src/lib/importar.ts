@@ -62,5 +62,5 @@ export async function importarArquivo(arq: { uri: string; nome: string }, tipo: 
   const c = importarComprovante(db, linhas.map((l) => l.texto), id, ctx);
   if (!c.ok) throw new Error(c.erro);
   const d = c.dados_lidos;
-  return { texto: `Comprovante lido (${c.resultado}): ${d.estabelecimento}, ${formatarBRL(d.valor_centavos)}${d.data_local ? ` em ${d.data_local}` : ""}. Confira na aba Revisar.`, periodo: d.data_local ? { de: d.data_local, ate: d.data_local } : null };
+  return { texto: `Comprovante lido (${c.resultado}): ${d.estabelecimento}, ${formatarBRL(d.valor_centavos)}${d.data_local ? ` em ${d.data_local}` : ""}. Confira no botão de revisão do Início.`, periodo: d.data_local ? { de: d.data_local, ate: d.data_local } : null };
 }

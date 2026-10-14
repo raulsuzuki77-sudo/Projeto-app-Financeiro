@@ -2,7 +2,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
-import { grupoDaCategoria, rotuloCategoria, type Sugestao } from "../../../../core/src/index";
+import { rotuloCategoria, type Sugestao } from "../../../../core/src/index";
+import { BotaoRevisao } from "../../components/botao-revisao";
 import { Pizza } from "../../components/pizza";
 import { SeletorCategoria } from "../../components/seletor-categoria";
 import { SeletorMes } from "../../components/seletor-mes";
@@ -37,8 +38,8 @@ export default function Inicio() {
 
   const { dados, erro, carregando, recarregar } = useDados(async () => {
     await api.gerarRecorrencias();
-    const [resumo, cartoes, orcamento, viagens, recorrentes] = await Promise.all([api.resumo(mes), api.cartoes(), api.orcamento(mes), api.viagensSemEvento(), api.recorrentesDetectadas()]);
-    return { resumo, cartoes, orcamento, viagens, recorrentes };
+    const [resumo, cartoes, orcamento, viagens, recorrentes, visoes, pendentes] = await Promise.all([api.resumo(mes), api.cartoes(), api.orcamento(mes), api.viagensSemEvento(), api.recorrentesDetectadas(), api.visoesDespesa(mes), api.contarPendentes()]);
+    return { resumo, cartoes, orcamento, viagens, recorrentes, visoes, pendentes };
   }, [mes]);
   useBotaoAtualizar(recarregar);
 
@@ -57,6 +58,8 @@ export default function Inicio() {
   const [enviando, setEnviando] = useState(false);
   const [rapido, setRapido] = useState(false);
   const [texto, setTexto] = useState("");
+  const [parcelas, setParcelas] = useState("1");
+  const [valorInformado, setValorInformado] = useState<"total" | "parcela">("total");
 
   // sugestões de categoria enquanto o detalhamento é digitado
   const seq = useRef(0);
@@ -73,16 +76,8 @@ export default function Inicio() {
   }, [descricao, tipo]);
 
   const cartoes: CartaoLocal[] = dados?.cartoes ?? [];
-  const pizza = useMemo(() => {
-    const porCategoria = (dados?.resumo.por_categoria ?? []).filter((c) => c.categoria !== "nao_classificado");
-    if (visao === "categoria") return porCategoria.map((c) => ({ id: c.categoria, rotulo: rotuloCategoria(c.categoria), valor: c.total_centavos }));
-    if (visao === "grupo") {
-      const soma = new Map<string, number>();
-      for (const c of porCategoria) soma.set(grupoDaCategoria(c.categoria), (soma.get(grupoDaCategoria(c.categoria)) ?? 0) + c.total_centavos);
-      return [...soma.entries()].map(([g, v]) => ({ id: g, rotulo: g, valor: v }));
-    }
-    return (dados?.orcamento.classes ?? []).filter((c) => c.id !== "sem_classe" && c.realizado_centavos > 0).map((c) => ({ id: c.id, rotulo: c.rotulo, valor: c.realizado_centavos }));
-  }, [dados, visao]);
+  // As três visões vêm do núcleo e somam exatamente o mesmo total (só muda o agrupamento); "Sem categoria" aparece em todas.
+  const pizza = useMemo(() => (dados?.visoes[visao] ?? []).map((f) => ({ id: f.id, rotulo: f.rotulo, valor: f.total_centavos })), [dados, visao]);
   const avisos = useMemo(() => {
     const lista: { texto: string; rotulo: string; rota: string }[] = [];
     const estouros = dados?.orcamento.alertas.filter((a) => a.tipo === "estourou").length ?? 0;
@@ -94,7 +89,7 @@ export default function Inicio() {
     return lista;
   }, [dados, mes]);
   const semCategoria = dados?.resumo.por_categoria.find((c) => c.categoria === "nao_classificado")?.total_centavos ?? 0;
-  const totalDespesas = dados?.resumo.despesas_centavos ?? 0;
+  const totalDespesas = dados?.visoes.total_centavos ?? 0;
 
   async function registrar() {
     setErroForm(null);
@@ -111,18 +106,21 @@ export default function Inicio() {
       if (!iso) return setErroForm("Data inválida. Use o formato dd/mm/aaaa.");
       data = iso;
     }
+    const nParcelas = tipo === "despesa" ? Number(parcelas || "1") : 1;
+    if (!Number.isInteger(nParcelas) || nParcelas < 1 || nParcelas > 48) return setErroForm("O número de parcelas deve estar entre 1 e 48.");
     setEnviando(true);
     try {
-      const r = await api.lancar({ tipo, valor_centavos: centavos, descricao, forma_pagamento: forma, cartao_id: forma === "credito" || forma === "debito" ? cartaoId : null, categoria: categoria ?? undefined, data_local: data });
+      const r = await api.lancar({ tipo, valor_centavos: centavos, parcelas: nParcelas > 1 ? nParcelas : undefined, valor_informado: nParcelas > 1 ? valorInformado : undefined, descricao, forma_pagamento: forma, cartao_id: forma === "credito" || forma === "debito" ? cartaoId : null, categoria: categoria ?? undefined, data_local: data });
       setValor("");
       setDescricao("");
       setCategoria(null);
+      setParcelas("1");
       setSugestoes([]);
       if (r.resultado === "criado") {
         const l = r.lancamento;
         const pend = l.status === "pendente";
         toast({
-          texto: pend ? `Registrado (sem categoria): ${l.descricao}, ${formatarBRL(l.valor_centavos)}. Classifique em Revisar.` : `Registrado: ${l.descricao}, ${formatarBRL(l.valor_centavos)} em ${rotuloCategoria(l.categoria)}.`,
+          texto: pend ? `Registrado (sem categoria): ${l.descricao}, ${formatarBRL(l.valor_centavos)}. Classifique no botão de revisão (canto da tela).` : `Registrado: ${l.descricao}, ${formatarBRL(l.valor_centavos)} em ${rotuloCategoria(l.categoria)}.`,
           acao: { rotulo: "Desfazer", fazer: async () => { await api.excluir(l.id); await recarregar(); } },
         });
       } else {
@@ -171,11 +169,11 @@ export default function Inicio() {
           )}
           {semCategoria > 0 || (dados?.resumo.pendentes ?? 0) > 0 ? (
             <View style={{ gap: 8 }}>
-              <Aviso tipo="info">{`${dados?.resumo.pendentes ?? 0} item(ns) aguardam revisão${semCategoria > 0 ? `, incluindo ${formatarBRL(semCategoria)} sem categoria que não aparecem na pizza` : ""}.`}</Aviso>
+              <Aviso tipo="info">{`${dados?.resumo.pendentes ?? 0} item(ns) deste mês aguardam revisão${semCategoria > 0 ? `; ${formatarBRL(semCategoria)} estão como "Sem categoria" no gráfico` : ""}.`}</Aviso>
               <Botao rotulo="Revisar agora" onPress={() => router.push("/revisar")} secundario pequeno />
             </View>
           ) : null}
-          {pizza.length > 0 ? <Texto suave pequeno>Total de despesas no mês: {formatarBRL(totalDespesas)}. {visao === "classe" ? "Por classe do orçamento, incluindo aportes. " : ""}Toque numa fatia para ver o valor.</Texto> : null}
+          {pizza.length > 0 ? <Texto suave pequeno>Total de despesas no mês: {formatarBRL(totalDespesas)}, o mesmo nas três visões. Aportes e transferências ficam de fora. Toque numa fatia para ver o valor.</Texto> : null}
         </Cartao>
 
         {avisos.length > 0 ? (
@@ -224,6 +222,18 @@ export default function Inicio() {
             </View>
           ) : null}
 
+          {tipo === "despesa" ? (
+            <View style={{ gap: 8 }}>
+              <Campo rotulo="Parcelas (1 = à vista)" value={parcelas} onChangeText={(v) => setParcelas(v.replace(/\D/g, "").slice(0, 2))} keyboardType="number-pad" placeholder="1" maxLength={2} />
+              {Number(parcelas) > 1 ? (
+                <>
+                  <Segmentado rotulo="O valor informado é" valor={valorInformado} onChange={setValorInformado} opcoes={[{ id: "total", rotulo: "Da compra inteira" }, { id: "parcela", rotulo: "De cada parcela" }]} />
+                  <Texto suave pequeno>Cada mês entra com a sua parcela (fluxo de caixa); as parcelas dos meses seguintes ficam previstas até a fatura chegar.</Texto>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={{ gap: 8 }}>
             <Text style={{ color: t.suave, fontSize: 13 }}>Data</Text>
             <GrupoChips>
@@ -256,6 +266,7 @@ export default function Inicio() {
         </Cartao>
       </ScrollView>
       <SeletorCategoria visivel={seletor} selecionada={categoria} onEscolher={(id) => { setCategoria(id); setSeletor(false); }} onFechar={() => setSeletor(false)} />
+      <BotaoRevisao pendentes={dados?.pendentes ?? 0} aoTocar={() => router.push("/revisar")} />
     </KeyboardAvoidingView>
   );
 }

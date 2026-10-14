@@ -66,7 +66,7 @@ export default function Painel() {
               <Indicador rotulo="Saldo" valor={formatarBRL(r.saldo_centavos)} cor={r.saldo_centavos < 0 ? t.despesa : t.receita} />
               <Indicador rotulo="Taxa de poupança" valor={r.taxa_poupanca === null ? "sem receitas" : `${(r.taxa_poupanca * 100).toFixed(1).replace(".", ",")}%`} />
             </View>
-            {r.pendentes > 0 ? <Aviso tipo="info">{`${r.pendentes} lançamento(s) pendente(s) entram nestes totais; confirme na aba Revisar.`}</Aviso> : null}
+            {r.pendentes > 0 ? <Aviso tipo="info">{`${r.pendentes} lançamento(s) pendente(s) entram nestes totais; confirme no botão de revisão do Início.`}</Aviso> : null}
             <Texto suave pequeno>Transferências (como o pagamento da fatura) não contam como despesa.</Texto>
           </Cartao>
           <Cartao titulo="Despesas por categoria">{r.por_categoria.length ? <Barras dados={r.por_categoria.map((c) => ({ rotulo: c.categoria, valor: c.total_centavos }))} /> : <Texto suave>Sem despesas no mês.</Texto>}</Cartao>

@@ -4,6 +4,7 @@ import { interpretarMensagem } from "../parsing/mensagem";
 import { formatarBRL, normalizar } from "../parsing/text";
 import { paraLocal } from "../parsing/tempo";
 import { alterarLancamento, registrarLancamento } from "./lancamentos";
+import { dividirEmParcelas } from "./manual";
 import { resumoMensal } from "../dashboard/consultas";
 
 export interface MensagemRecebida {
@@ -70,10 +71,14 @@ export function processarMensagem(db: Db, m: MensagemRecebida): string {
   const cartao = l.cartao_apelido_norm
     ? (db.prepare("SELECT id FROM cartao WHERE usuario_id = ? AND apelido_norm = ?").get(m.usuario_id, l.cartao_apelido_norm) as { id: number } | undefined)
     : undefined;
+  // Compra parcelada ("3000 em 10x"): o valor dito e o total; cada mes entra com a sua parcela (fluxo de caixa), nao tudo no mes da compra.
+  const valoresParcelas = l.parcela_total && l.parcela_total > 1 && l.tipo === "despesa" ? dividirEmParcelas(l.valor_centavos, l.parcela_total) : undefined;
   const reg = registrarLancamento(db, {
     usuario_id: m.usuario_id,
     tipo: l.tipo,
-    valor_centavos: l.valor_centavos,
+    valor_centavos: valoresParcelas ? valoresParcelas[0]! : l.valor_centavos,
+    parcela_atual: valoresParcelas ? 1 : null,
+    valores_parcelas: valoresParcelas,
     descricao: l.descricao,
     forma_pagamento: l.forma_pagamento,
     cartao_id: cartao?.id ?? null,
