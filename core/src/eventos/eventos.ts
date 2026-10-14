@@ -171,7 +171,20 @@ export interface GastoCandidato {
   distancia_dias: number;
   /** Já pertence a outro evento. */
   evento_id: number | null;
+  /** Detalhes para o usuário reconhecer o gasto antes de vincular. */
+  forma_pagamento: string | null;
+  cartao: string | null;
+  hora_local: number | null;
+  parcela_atual: number | null;
+  parcela_total: number | null;
+  /** Texto original do extrato ou da fatura (a descrição pode ter sido simplificada), quando houver. */
+  texto_bruto: string | null;
 }
+
+/** Colunas que descrevem o gasto por inteiro: descrição, data, categoria, forma de pagamento, cartão, parcela e o texto original. */
+const COLUNAS_DETALHE = `l.id, l.descricao, l.data_local, l.categoria, l.valor_centavos, l.evento_id, l.forma_pagamento, l.hora_local, l.parcela_atual, l.parcela_total,
+  (SELECT c.apelido FROM cartao c WHERE c.id = l.cartao_id) cartao,
+  (SELECT o.texto_bruto FROM lancamento_origem o WHERE o.lancamento_id = l.id AND o.texto_bruto IS NOT NULL ORDER BY o.id LIMIT 1) texto_bruto`;
 
 const diasEntre = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);
 
@@ -185,10 +198,10 @@ export function sugestoesDoPeriodo(db: Db, usuarioId: string, eventoId: number):
   const recorrentes = new Set(detectarRecorrentes(db, usuarioId, e.data_fim).map((r) => `${r.tipo}|${r.chave}`));
   const rows = db
     .prepare(
-      `SELECT id, descricao, estabelecimento_norm, data_local, categoria, valor_centavos, evento_id FROM lancamento
-       WHERE usuario_id = ? AND tipo = 'despesa' AND status != 'cancelado' AND evento_id IS NULL AND data_local BETWEEN ? AND ?
-         AND natureza NOT IN (${MARCAS}) AND categoria NOT IN (${MARCAS_VIAGEM}) AND categoria NOT IN (${MARCAS_CASA}) AND forma_pagamento IS NOT 'boleto'
-       ORDER BY valor_centavos DESC`,
+      `SELECT ${COLUNAS_DETALHE}, l.estabelecimento_norm FROM lancamento l
+       WHERE l.usuario_id = ? AND l.tipo = 'despesa' AND l.status != 'cancelado' AND l.evento_id IS NULL AND l.data_local BETWEEN ? AND ?
+         AND l.natureza NOT IN (${MARCAS}) AND l.categoria NOT IN (${MARCAS_VIAGEM}) AND l.categoria NOT IN (${MARCAS_CASA}) AND l.forma_pagamento IS NOT 'boleto'
+       ORDER BY l.valor_centavos DESC`,
     )
     .all(usuarioId, e.data_inicio, e.data_fim, ...NATUREZAS_FORA, ...CATEGORIAS_DE_VIAGEM, ...CATEGORIAS_DA_CASA) as (GastoCandidato & { estabelecimento_norm: string })[];
   return rows
@@ -206,10 +219,10 @@ export function candidatosParaEvento(db: Db, usuarioId: string, eventoId: number
   const busca = opcoes.busca?.trim() ? `%${opcoes.busca.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()}%` : null;
   const rows = db
     .prepare(
-      `SELECT id, descricao, data_local, categoria, valor_centavos, evento_id FROM lancamento
-       WHERE usuario_id = ? AND tipo = 'despesa' AND status != 'cancelado' AND (evento_id IS NULL OR evento_id != ?)
-         AND natureza NOT IN ('investimento','transferencia','estorno') ${busca ? "AND estabelecimento_norm LIKE ?" : ""}
-       ORDER BY data_local DESC LIMIT 2000`,
+      `SELECT ${COLUNAS_DETALHE} FROM lancamento l
+       WHERE l.usuario_id = ? AND l.tipo = 'despesa' AND l.status != 'cancelado' AND (l.evento_id IS NULL OR l.evento_id != ?)
+         AND l.natureza NOT IN ('investimento','transferencia','estorno') ${busca ? "AND l.estabelecimento_norm LIKE ?" : ""}
+       ORDER BY l.data_local DESC LIMIT 2000`,
     )
     .all(...(busca ? [usuarioId, eventoId, busca] : [usuarioId, eventoId])) as Omit<GastoCandidato, "distancia_dias">[];
   const dist = (d: string) => (d < e.data_inicio ? diasEntre(e.data_inicio, d) : d > e.data_fim ? diasEntre(d, e.data_fim) : 0);
