@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Switch, View } from "react-native";
+import Constants from "expo-constants";
 import { useFocusEffect } from "expo-router";
 import { Aviso, Botao, Campo, Cartao, Texto } from "../components/ui";
 import { useTema } from "../components/tema";
@@ -76,6 +77,9 @@ export default function Seguranca() {
             <Switch accessibilityLabel="Bloquear com Face ID" value={bloqueio} onValueChange={alternar} />
           </View> : null}
           <Texto suave pequeno>Seus dados ficam apenas neste aparelho, no banco do aplicativo. Nada é enviado a servidores.</Texto>
+        </Cartao>
+        <Cartao titulo="Sobre esta versão">
+          <Texto suave pequeno>{`Versão ${Constants.expoConfig?.version ?? "?"}, código ${String((Constants.expoConfig?.extra as { build?: string } | undefined)?.build ?? "não informado")}. Confira que o código é o mesmo mostrado pelo Terminal (git log -1 --oneline) ao instalar.`}</Texto>
         </Cartao>
         <Cartao titulo="Backup cifrado">
           <Texto suave pequeno>Como os dados existem só neste aparelho, faça backups com frequência e guarde o arquivo no iCloud Drive ou em outro lugar seguro. O arquivo é cifrado (AES-256) com a senha abaixo; se perder a senha, não há como recuperar.</Texto>

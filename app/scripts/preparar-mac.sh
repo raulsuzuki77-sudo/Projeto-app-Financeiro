@@ -53,11 +53,19 @@ principal() {
   (cd ../core && npm install)
   npm install
 
+  # Identificacao da versao, exibida no aplicativo (Mais opcoes > Backup e seguranca > Sobre esta versao).
+  local build
+  build="$(git -C .. rev-parse --short HEAD 2>/dev/null || true)"
+  [[ -n "$build" ]] || build="$(tr -d '[:space:]' < ../BUILD.txt 2>/dev/null || true)"
+  [[ -n "$build" ]] || build="desconhecida"
+  ok "Versao do codigo: $build"
+
   echo "Gravando o identificador em app.json..."
-  BUNDLE="$bundle" node -e '
+  BUNDLE="$bundle" BUILD="$build" node -e '
     const fs = require("fs");
     const a = JSON.parse(fs.readFileSync("app.json", "utf8"));
     a.expo.ios.bundleIdentifier = process.env.BUNDLE;
+    a.expo.extra = { ...(a.expo.extra || {}), build: process.env.BUILD };
     fs.writeFileSync("app.json", JSON.stringify(a, null, 2) + "\n");'
 
   echo "Gerando o projeto iOS (expo prebuild)..."
