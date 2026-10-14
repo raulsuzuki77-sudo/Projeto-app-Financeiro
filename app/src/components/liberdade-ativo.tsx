@@ -82,7 +82,7 @@ export function LiberdadeAtivo({ item, aoSalvar, aoRemover }: { item: ItemDaCart
         {d.vencimento ? <Linha rotulo="Vencimento" valor={dataBR(d.vencimento)} /> : null}
         {d.cupom !== undefined ? <Linha rotulo="Cupom" valor={`${String(d.cupom).replace(".", ",")}% a.a.`} /> : null}
         {item.custo_total_original_centavos != null ? <Linha rotulo="Custo total (extrato)" valor={formatarMoeda(item.custo_total_original_centavos, item.moeda, formatarBRL)} /> : usd && mostraPreco ? <Linha rotulo="Custo (extrato)" valor="não informado (0,00 no extrato)" /> : null}
-        <Linha rotulo="Setor" valor={item.setor ? `${item.setor} (${ORIGEM[item.setor_origem ?? "padrao"]})` : "Sem setor"} />
+        {item.setor || item.classe_ativo === "renda_variavel" ? <Linha rotulo="Setor" valor={item.setor ? `${item.setor} (${ORIGEM[item.setor_origem ?? "padrao"]})` : "Sem setor"} /> : null}
         <Linha rotulo="Exposição" valor={`${ROTULO_EXPOSICAO[item.exposicao]} (${ORIGEM[item.exposicao_origem]})`} />
         <Linha rotulo="Instituição" valor={item.conta ? `${item.instituicao}, conta final ${item.conta}` : item.instituicao} />
         {item.defasado ? <Linha rotulo="Posição de" valor={`${mesCurto(item.mes_snapshot)} (defasada)`} /> : null}

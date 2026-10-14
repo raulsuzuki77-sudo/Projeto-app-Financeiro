@@ -17,7 +17,7 @@ struct ObservacaoOcr: Record {
 }
 
 /// Trecho de texto posicionado de uma pagina de PDF, no mesmo formato do pdf.js: pontos, origem no canto INFERIOR esquerdo.
-/// `tamanho` e a altura da caixa dos caracteres (aproxima o tamanho da fonte).
+/// `tamanho` e o tamanho da fonte em pontos (do texto atribuido da pagina; sem ele, a altura da caixa do caractere dividida por 1,2).
 struct ItemPdfNativo: Record {
   @Field var str: String = ""
   @Field var x: Double = 0
@@ -35,7 +35,8 @@ fileprivate struct TrechoAberto {
   var xFim: CGFloat = 0
   var yMin: CGFloat = 0
   var yMeio: CGFloat = 0
-  var altura: CGFloat = 0
+  /// Tamanho da fonte (estimado): o maior visto no trecho.
+  var tamanho: CGFloat = 0
 }
 
 internal final class OcrFalhaException: GenericException<String> {
@@ -193,7 +194,7 @@ public class OcrNativoModule: Module {
     o.x = Double(t.x0)
     o.y = Double(t.yMin)
     o.largura = Double(max(0, t.xFim - t.x0))
-    o.tamanho = Double(t.altura)
+    o.tamanho = Double(t.tamanho)
     o.pagina = pagina
     return o
   }
@@ -206,6 +207,10 @@ public class OcrNativoModule: Module {
     let ns = texto as NSString
     let total = ns.length
     if total == 0 { return [] }
+
+    // Texto atribuido (fontes). Os indices so valem se o comprimento bater com o de `string`.
+    let atributos = pagina.attributedString
+    let fontesAlinhadas = atributos != nil && atributos!.length == total
 
     var itens: [ItemPdfNativo] = []
     var trecho: TrechoAberto? = nil
@@ -234,16 +239,21 @@ public class OcrNativoModule: Module {
         continue
       }
       temGeometria = true
+      // Tamanho da fonte: do texto atribuido (so se tiver o mesmo comprimento de `string`); senao, a altura da caixa / 1,2.
+      var tam = r.height / 1.2
+      if fontesAlinhadas, let fonte = atributos!.attribute(.font, at: i, effectiveRange: nil) as? UIFont, fonte.pointSize >= 3, fonte.pointSize <= 200 {
+        tam = fonte.pointSize
+      }
       if var t = trecho {
-        let alturaRef = max(t.altura, r.height)
-        let mudouLinha = abs(r.midY - t.yMeio) > 0.5 * alturaRef
+        let tamRef = max(t.tamanho, tam)
+        let mudouLinha = abs(r.midY - t.yMeio) > 0.45 * tamRef
         let folga = r.minX - t.xFim
-        let salto = folga > 0.15 * alturaRef || folga < -0.5 * alturaRef
+        let salto = folga > 0.15 * tamRef || folga < -0.5 * tamRef
         if !mudouLinha && !salto {
           t.unidades.append(u)
           t.xFim = max(t.xFim, r.maxX)
           t.yMin = min(t.yMin, r.minY)
-          t.altura = alturaRef
+          t.tamanho = tamRef
           trecho = t
           continue
         }
@@ -259,7 +269,7 @@ public class OcrNativoModule: Module {
       novo.xFim = r.maxX
       novo.yMin = r.minY
       novo.yMeio = r.midY
-      novo.altura = r.height
+      novo.tamanho = tam
       trecho = novo
     }
     if let t = trecho {

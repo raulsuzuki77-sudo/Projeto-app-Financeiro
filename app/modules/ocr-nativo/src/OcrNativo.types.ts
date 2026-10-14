@@ -14,7 +14,7 @@ export interface ObservacaoOcr {
 
 /**
  * Trecho de texto posicionado de uma página de PDF, no mesmo formato do pdf.js: pontos, origem no canto inferior esquerdo.
- * `tamanho` é a altura da caixa dos caracteres (aproxima o tamanho da fonte).
+ * `tamanho` é o tamanho da fonte em pontos (do texto atribuído da página; sem ele, a altura da caixa do caractere dividida por 1,2).
  */
 export interface ItemPdfNativo {
   str: string;
