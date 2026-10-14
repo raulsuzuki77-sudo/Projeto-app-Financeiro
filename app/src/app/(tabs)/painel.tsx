@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { Barras } from "../../components/barras";
+import { EvolucaoClasses, ParticipacaoClasses } from "../../components/participacao-classes";
 import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
 import { Aviso, Cartao, Segmentado, Texto } from "../../components/ui";
@@ -30,8 +31,8 @@ export default function Painel() {
   const [secao, setSecao] = useState<Secao>("resumo");
 
   const { dados, erro, carregando, recarregar } = useDados(async () => {
-    const [resumo, dias, calor] = await Promise.all([api.resumo(mes), api.calendario(mes), api.mapaCalor(`${mes}-01`, ultimoDia(mes))]);
-    return { resumo, dias, calor };
+    const [resumo, dias, calor, orcamento] = await Promise.all([api.resumo(mes), api.calendario(mes), api.mapaCalor(`${mes}-01`, ultimoDia(mes)), api.orcamento(mes)]);
+    return { resumo, dias, calor, orcamento };
   }, [mes]);
   useBotaoAtualizar(recarregar);
 
@@ -69,6 +70,8 @@ export default function Painel() {
             {r.pendentes > 0 ? <Aviso tipo="info">{`${r.pendentes} lançamento(s) pendente(s) entram nestes totais; confirme no botão de revisão do Início.`}</Aviso> : null}
             <Texto suave pequeno>Transferências (como o pagamento da fatura) não contam como despesa.</Texto>
           </Cartao>
+          {dados?.orcamento && dados.orcamento.mes === mes ? <ParticipacaoClasses painel={dados.orcamento} pizza aoMudar={recarregar} /> : null}
+          <EvolucaoClasses mesFim={mes} />
           <Cartao titulo="Despesas por categoria">{r.por_categoria.length ? <Barras dados={r.por_categoria.map((c) => ({ rotulo: c.categoria, valor: c.total_centavos }))} /> : <Texto suave>Sem despesas no mês.</Texto>}</Cartao>
           <Cartao titulo="Despesas por natureza">{r.por_natureza.length ? <Barras dados={r.por_natureza.map((c) => ({ rotulo: c.natureza, valor: c.total_centavos }))} /> : <Texto suave>Sem despesas no mês.</Texto>}</Cartao>
         </>

@@ -372,7 +372,7 @@ function limparDocumentosVazios(db: Db, usuarioId: string): void {
 export type EscopoApagar = "movimentacoes" | "tudo";
 
 /** Tabelas apagadas ao zerar só as movimentações (lançamentos, arquivos e extratos), mantendo cartões, regras aprendidas, orçamento e metas. */
-const TABELAS_DE_MOVIMENTACAO = ["auditoria", "lancamento_origem", "lancamento", "documento", "posicao_investimento", "movimento_investimento", "extrato_investimento", "mensagem_processada"];
+const TABELAS_DE_MOVIMENTACAO = ["auditoria", "lancamento_origem", "lancamento", "documento", "arquivo_pasta", "posicao_investimento", "movimento_investimento", "extrato_investimento", "mensagem_processada"];
 
 /**
  * Apaga dados de vez. "movimentacoes": lançamentos, documentos e extratos de investimento (mantém cartões, regras de classificação,

@@ -36,3 +36,4 @@ export * from "./investimentos/leitor";
 export * from "./investimentos/servico";
 export * from "./documentos/documentos";
 export * from "./ingest/lote";
+export * from "./documentos/pasta";

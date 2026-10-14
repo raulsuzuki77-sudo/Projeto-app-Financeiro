@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Switch, Text, View } from "react-native";
 import { somarDias } from "../../../core/src/index";
+import { AjustarDocumentos } from "../components/ajustar-documentos";
 import { useTema } from "../components/tema";
 import { Aviso, Botao, Campo, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../components/ui";
 import { api, type Cartao as CartaoLocal } from "../lib/api";
@@ -28,7 +29,8 @@ function tipoSugerido(nome: string): TipoImportacao {
 export default function Importar() {
   const t = useTema();
   const router = useRouter();
-  const params = useLocalSearchParams<{ uri?: string; nome?: string; tipo?: string }>();
+  const params = useLocalSearchParams<{ uri?: string; nome?: string; tipo?: string; aba?: string }>();
+  const [aba, setAba] = useState<"importar" | "ajustar">(params.aba === "ajustar" ? "ajustar" : "importar");
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
   const [tipo, setTipo] = useState<TipoImportacao>("fatura");
   const [cartoes, setCartoes] = useState<CartaoLocal[]>([]);
@@ -143,6 +145,9 @@ export default function Importar() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <Segmentado rotulo="Importar ou ajustar" valor={aba} onChange={setAba} opcoes={[{ id: "importar", rotulo: "Importar" }, { id: "ajustar", rotulo: "Ajustar documentos" }]} />
+        {aba === "ajustar" ? <AjustarDocumentos /> : null}
+        {aba === "importar" ? (<>
         <Cartao titulo="1. Arquivo">
           {arquivos.length > 0 ? arquivos.map((a) => <Text key={a.uri} style={{ color: t.texto, fontSize: 15, fontWeight: "600" }} numberOfLines={2}>{a.nome}</Text>) : <Texto suave>Escolha a fatura (PDF ou foto), o extrato (OFX ou CSV, vários de uma vez) ou um comprovante. Os extratos CSV do Nubank (conta e cartão) são reconhecidos automaticamente.</Texto>}
           <Botao rotulo={arquivos.length > 0 ? "Escolher outros arquivos" : "Escolher arquivos"} icone="importar" onPress={pickArquivo} secundario />
@@ -199,6 +204,7 @@ export default function Importar() {
             <Botao rotulo="Não houve" secundario onPress={() => setSemEvento(true)} />
           </Cartao>
         ) : null}
+        </>) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

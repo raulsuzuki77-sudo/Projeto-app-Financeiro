@@ -17,11 +17,21 @@ interface Item {
   parecidos: number;
 }
 
+type OrdemRevisao = "agrupado" | "valor_desc" | "valor_asc" | "data_desc" | "data_asc";
+const ORDENS: { id: OrdemRevisao; rotulo: string }[] = [
+  { id: "agrupado", rotulo: "Parecidos juntos" },
+  { id: "valor_desc", rotulo: "Maior valor" },
+  { id: "valor_asc", rotulo: "Menor valor" },
+  { id: "data_desc", rotulo: "Mais recentes" },
+  { id: "data_asc", rotulo: "Mais antigos" },
+];
+
 export default function Revisar() {
   const t = useTema();
   const router = useRouter();
   const toast = useToast();
   const [escolhendo, setEscolhendo] = useState<Lancamento | null>(null);
+  const [ordem, setOrdem] = useState<OrdemRevisao>("agrupado");
   const navigation = useNavigation();
   // A revisão abre pelo botão flutuante do Início: o cabeçalho traz a seta de volta em vez do menu.
   useLayoutEffect(() => {
@@ -29,22 +39,29 @@ export default function Revisar() {
   }, [navigation, router]);
 
   const { dados, erro, carregando, recarregar } = useDados(async (): Promise<Item[]> => {
-    const d = new Date();
-    const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    // Parcelas futuras previstas aparecem quando o mês chega; não entram na revisão antes disso.
-    const pendentes = await api.lancamentos({ status: "pendente", ate: hoje, limite: 300 });
+    // Pendentes até hoje (parcelas futuras previstas só aparecem quando o mês chega) e todos os "sem categoria", que contam nos totais.
+    const pendentes = await api.revisao();
     // Estabelecimentos com mais pendentes primeiro: classificar um resolve todos os parecidos.
     const grupo = (l: Lancamento) => `${l.natureza === "estorno" || l.tipo === "despesa" ? "d" : l.tipo}:${chaveEstabelecimento(l.estabelecimento_norm) || l.id}`;
     const tamanho = new Map<string, number>();
     for (const l of pendentes) tamanho.set(grupo(l), (tamanho.get(grupo(l)) ?? 0) + 1);
-    const ordenados = [...pendentes].sort((a, b) => (tamanho.get(grupo(b))! - tamanho.get(grupo(a))!) || b.valor_centavos - a.valor_centavos);
     return Promise.all(
-      ordenados.map(async (l) => ({
+      pendentes.map(async (l) => ({
         l,
         parecidos: tamanho.get(grupo(l))! - 1,
         sugestoes: await api.sugestoes(l.descricao, l.natureza === "estorno" ? "despesa" : l.tipo === "receita" ? "receita" : l.tipo === "investimento" ? "investimento" : "despesa", { valor_centavos: l.valor_centavos, data_local: l.data_local }),
       })),
     );
+  });
+  // A ordem escolhida vale sobre a lista já carregada: trocar de ordem não consulta de novo.
+  const ordenados = [...(dados ?? [])].sort((a, b) => {
+    switch (ordem) {
+      case "valor_desc": return b.l.valor_centavos - a.l.valor_centavos || (a.l.data_local < b.l.data_local ? 1 : -1);
+      case "valor_asc": return a.l.valor_centavos - b.l.valor_centavos || (a.l.data_local < b.l.data_local ? 1 : -1);
+      case "data_desc": return a.l.data_local < b.l.data_local ? 1 : a.l.data_local > b.l.data_local ? -1 : b.l.id - a.l.id;
+      case "data_asc": return a.l.data_local < b.l.data_local ? -1 : a.l.data_local > b.l.data_local ? 1 : a.l.id - b.l.id;
+      default: return b.parecidos - a.parecidos || b.l.valor_centavos - a.l.valor_centavos;
+    }
   });
   useBotaoAtualizar(recarregar);
 
@@ -112,10 +129,12 @@ export default function Revisar() {
           <View style={{ gap: 8 }}>
             <Texto suave>{dados.length} item(ns) para revisar. Toque numa categoria para classificar; itens parecidos são classificados juntos.</Texto>
             {comSugestao.length > 1 ? <Botao rotulo={`Aceitar a sugestão em ${comSugestao.length} itens`} onPress={aceitarTodas} secundario pequeno /> : null}
+            <Texto suave pequeno>Ordenar por</Texto>
+            <GrupoChips>{ORDENS.map((o) => <Chip key={o.id} rotulo={o.rotulo} ativo={ordem === o.id} onPress={() => setOrdem(o.id)} />)}</GrupoChips>
           </View>
         ) : null}
 
-        {(dados ?? []).map(({ l, sugestoes, parecidos }) => {
+        {ordenados.map(({ l, sugestoes, parecidos }) => {
           const real = l.categoria !== "nao_classificado";
           return (
             <Cartao key={l.id}>

@@ -1,4 +1,7 @@
 import {
+  apagarDados, classificarVarios, confirmarVarios, definirEventoVarios, definirLimiteClasse, diferencaDeMeses, documentoPorHash, evolucaoDeClasses, excluirDocumento, excluirMes, excluirVarios, listarDocumentos, listarParaRevisao, moverDocumento, moverMes,
+  previaDoMes, restaurarVarios, resumoDeManuaisDoMes, arquivoDaPastaResolvido, listarArquivosDaPasta, registrarArquivoDaPasta, reiniciarRegistroDaPasta, type StatusArquivoPasta,
+  type EscopoApagar, type EscopoDoMes, type RefDocumento,
   candidatosParaEvento, ignorarRecorrente, listarRecorrentesIgnoradas, parcelasFuturas, restaurarRecorrenteIgnorada, sugestoesDoPeriodo, vincularLancamentos, visoesDeDespesa,
   alterarLancamento, atualizarEvento, copiarOrcamento, coberturaDaRecorrencia, coberturaPrevia, criarEvento, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento, detectarRecorrentes,
   gerarRecorrenciasDetalhado, listarEventos, orcamentoVsMetas, painelOrcamento, removerEvento, removerOrcamento, sugerirOrcamentoPelaMedia, viagensSemEvento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
@@ -27,6 +30,8 @@ export type DadosLiberdade = {
   extratos: ReturnType<typeof listarExtratos>;
   cambios: ReturnType<typeof listarCambios>;
 };
+export type { RefDocumento, EscopoDoMes };
+export type DocumentoListado = Awaited<ReturnType<typeof api.documentos>>[number];
 export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
 export type Reserva = ReturnType<typeof reservaDeEmergencia>;
 export type MapaCalor = ReturnType<typeof mapaCalor>;
@@ -110,8 +115,35 @@ export const api = {
   visoesDespesa: async (mes: string) => visoesDeDespesa(obterBanco(), USUARIO, mes),
   /** Parcelas já comprometidas nos meses seguintes (fluxo de caixa das compras parceladas). */
   parcelasFuturas: async (mesInicial: string, n = 6) => parcelasFuturas(obterBanco(), USUARIO, mesInicial, n),
-  /** Quantos lançamentos aguardam revisão (parcelas futuras previstas não contam). */
-  contarPendentes: async () => (listarLancamentos(obterBanco(), USUARIO, { status: "pendente", ate: hoje(), limite: 2000 }) as unknown[]).length,
+  /** Quantos lançamentos aguardam revisão (parcelas futuras previstas não contam; os sem categoria contam sempre). */
+  contarPendentes: async () => (listarParaRevisao(obterBanco(), USUARIO, { ate: hoje(), limite: 2000 }) as unknown[]).length,
+  /** Lançamentos da revisão: pendentes até hoje e todos os sem categoria. */
+  revisao: async (ordem?: FiltroLancamentos["ordem"]) => listarParaRevisao(obterBanco(), USUARIO, { ate: hoje(), ordem, limite: 600 }) as Lancamento[],
+
+  /** Ações em lote do Extrato. Cada uma devolve o que foi alterado, para poder desfazer. */
+  excluirVarios: async (ids: number[]) => excluirVarios(obterBanco(), USUARIO, ids),
+  restaurarVarios: async (ids: number[]) => restaurarVarios(obterBanco(), USUARIO, ids),
+  classificarVarios: async (ids: number[], categoria: string) => classificarVarios(obterBanco(), USUARIO, ids, categoria),
+  confirmarVarios: async (ids: number[]) => confirmarVarios(obterBanco(), USUARIO, ids),
+  definirEventoVarios: async (ids: number[], eventoId: number | null) => definirEventoVarios(obterBanco(), USUARIO, ids, eventoId),
+
+  /** Documentos importados (com mês, só os que têm lançamentos nele) e o que veio de digitação no mês. */
+  documentos: async (mes?: string) => listarDocumentos(obterBanco(), USUARIO, { mes }),
+  manuaisDoMes: async (mes: string) => resumoDeManuaisDoMes(obterBanco(), USUARIO, mes),
+  documentoPorHash: async (hash: string) => documentoPorHash(obterBanco(), USUARIO, hash),
+  excluirDocumento: async (ref: RefDocumento) => excluirDocumento(obterBanco(), USUARIO, ref),
+  /** Desloca o documento (fatura ou extrato) para outro mês. */
+  moverDocumento: async (ref: RefDocumento, paraMes: string, mesReferencia: string) => moverDocumento(obterBanco(), USUARIO, ref, diferencaDeMeses(mesReferencia, paraMes)),
+  previaDoMes: async (mes: string, escopo: EscopoDoMes) => previaDoMes(obterBanco(), USUARIO, mes, escopo),
+  excluirMes: async (mes: string, escopo: EscopoDoMes) => excluirMes(obterBanco(), USUARIO, mes, escopo),
+  moverMes: async (mes: string, paraMes: string, escopo: EscopoDoMes) => moverMes(obterBanco(), USUARIO, mes, paraMes, escopo),
+  /** Pasta "00. Documentos financeiros": o que o aplicativo já fez com cada arquivo (nome, tamanho e data identificam a versão). */
+  arquivoDaPastaResolvido: async (caminho: string, tamanho: number, modificado: number) => arquivoDaPastaResolvido(obterBanco(), USUARIO, caminho, tamanho, modificado),
+  registrarArquivoDaPasta: async (a: { caminho: string; tamanho: number; modificado: number; hash_arquivo?: string | null; status: StatusArquivoPasta; mensagem?: string | null; documento_id?: number | null }) => registrarArquivoDaPasta(obterBanco(), USUARIO, a),
+  arquivosDaPasta: async () => listarArquivosDaPasta(obterBanco(), USUARIO),
+  reiniciarRegistroDaPasta: async () => reiniciarRegistroDaPasta(obterBanco(), USUARIO),
+  /** Apaga dados de vez. A confirmação do usuário e a autenticação do aparelho são feitas pela tela. */
+  apagarDados: async (escopo: EscopoApagar) => apagarDados(obterBanco(), escopo),
 
   orcamento: async (mes: string) => painelOrcamento(obterBanco(), USUARIO, mes),
   /** `mes` = "*" vale para todos os meses sem valor próprio; `item` = categoria ou "__receita". */
@@ -121,6 +153,10 @@ export const api = {
   sugerirOrcamento: async (mes: string) => sugerirOrcamentoPelaMedia(obterBanco(), USUARIO, mes),
   definirClasse: async (categoria: string, classe: ClasseId | null) => definirClasse(obterBanco(), USUARIO, categoria, classe),
   orcamentoVsMetas: async (mes: string) => orcamentoVsMetas(obterBanco(), USUARIO, mes),
+  /** Limite máximo da classe como fração da receita (0,3 = 30%); null volta ao padrão. */
+  definirLimiteClasse: async (classe: ClasseId, fracao: number | null) => definirLimiteClasse(obterBanco(), USUARIO, classe, fracao),
+  /** Participação de cada classe na receita, mês a mês (como as colunas da planilha de acompanhamento). */
+  evolucaoClasses: async (mesFim: string, n = 6) => evolucaoDeClasses(obterBanco(), USUARIO, mesFim, n),
 
   premissas: async () => lerPremissas(obterBanco(), USUARIO),
   salvarPremissa: async (p: { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null }) => {

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Bloqueio } from "../components/bloqueio";
 import { PainelLateralProvider } from "../components/painel-lateral";
+import { SincronizadorDaPasta } from "../components/sincronizador-da-pasta";
 import { useTema } from "../components/tema";
 import { ToastProvider } from "../components/toast";
 import { Aviso } from "../components/ui";
@@ -39,6 +40,7 @@ export default function LayoutRaiz() {
     <Bloqueio>
       <ToastProvider>
         <PainelLateralProvider>
+          <SincronizadorDaPasta />
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: t.cartao },
@@ -50,12 +52,13 @@ export default function LayoutRaiz() {
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="lancamento/[id]" options={{ title: "Editar lançamento" }} />
-            <Stack.Screen name="importar" options={{ title: "Importar documento" }} />
+            <Stack.Screen name="importar" options={{ title: "Importar ou ajustar documentos" }} />
             <Stack.Screen name="eventos" options={{ title: "Viagens e eventos" }} />
             <Stack.Screen name="evento/[id]" options={{ title: "Evento" }} />
             <Stack.Screen name="recorrentes" options={{ title: "Gastos recorrentes" }} />
             <Stack.Screen name="metas" options={{ title: "Metas e cenários" }} />
             <Stack.Screen name="cartoes" options={{ title: "Cartões" }} />
+            <Stack.Screen name="pasta" options={{ title: "Pasta de documentos" }} />
             <Stack.Screen name="seguranca" options={{ title: "Backup e segurança" }} />
           </Stack>
         </PainelLateralProvider>

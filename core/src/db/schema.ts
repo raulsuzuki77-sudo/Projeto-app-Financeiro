@@ -105,6 +105,21 @@ CREATE TABLE IF NOT EXISTS documento (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documento_hash ON documento(usuario_id, hash_arquivo) WHERE hash_arquivo IS NOT NULL;
 
+-- Arquivos da pasta "00. Documentos financeiros" ja vistos pelo aplicativo (caminho + tamanho + data de modificacao identificam a versao),
+-- para nao ler de novo o que ja foi importado nem repetir erros a cada abertura.
+CREATE TABLE IF NOT EXISTS arquivo_pasta (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  caminho TEXT NOT NULL,
+  tamanho INTEGER NOT NULL,
+  modificado INTEGER NOT NULL,
+  hash_arquivo TEXT,
+  status TEXT NOT NULL,
+  mensagem TEXT,
+  documento_id INTEGER,
+  processado_em TEXT NOT NULL,
+  PRIMARY KEY (usuario_id, caminho, tamanho, modificado)
+);
+
 -- Rastreabilidade: toda origem que gerou ou confirmou o lancamento. UNIQUE = idempotencia.
 CREATE TABLE IF NOT EXISTS lancamento_origem (
   id INTEGER PRIMARY KEY,

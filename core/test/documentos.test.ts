@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { abrirBancoTeste } from "./helpers";
 import {
-  agruparOrigensLegadas, apagarDados, concluirDocumento, criarCartao, descartarDocumento, documentoPorHash, excluirDocumento, excluirMes, importarTexto, lancarManual, listarDocumentos, moverDocumento, moverMes,
+  agruparOrigensLegadas, apagarDados, arquivoDaPastaResolvido, listarArquivosDaPasta, nomeDoBackupMensal, registrarArquivoDaPasta, reiniciarRegistroDaPasta, concluirDocumento, criarCartao, descartarDocumento, documentoPorHash, excluirDocumento, excluirMes, importarTexto, lancarManual, listarDocumentos, moverDocumento, moverMes,
   previaDoMes, registrarDocumento, resumoDeManuaisDoMes, versaoAnterior, exportarDados, restaurarDados, resumoMensal, listarLancamentos,
 } from "../src/index";
 import type { Db } from "../src/db/tipos";
@@ -212,4 +212,24 @@ test("backup: documentos fazem a ida e a volta, e backup antigo sem documentos a
   const db3 = abrirBancoTeste();
   restaurarDados(db3, antigo);
   assert.equal(listarDocumentos(db3, U)[0]?.tipo, "legado");
+});
+
+test("pasta de documentos: arquivo resolvido nao e lido de novo; erro e decisao pendente voltam a ser tentados; zerar limpa o registro", () => {
+  const db = abrirBancoTeste();
+  const a = { caminho: "fatura-ago.pdf", tamanho: 1000, modificado: 1760000000 };
+  assert.equal(arquivoDaPastaResolvido(db, U, a.caminho, a.tamanho, a.modificado), false);
+  registrarArquivoDaPasta(db, U, { ...a, status: "erro", mensagem: "falhou" });
+  assert.equal(arquivoDaPastaResolvido(db, U, a.caminho, a.tamanho, a.modificado), false, "erro e tentado de novo");
+  registrarArquivoDaPasta(db, U, { ...a, status: "precisa_decisao", mensagem: "PDF com senha" });
+  assert.equal(arquivoDaPastaResolvido(db, U, a.caminho, a.tamanho, a.modificado), false);
+  registrarArquivoDaPasta(db, U, { ...a, status: "importado", hash_arquivo: "h" });
+  assert.equal(arquivoDaPastaResolvido(db, U, a.caminho, a.tamanho, a.modificado), true);
+  assert.equal(arquivoDaPastaResolvido(db, U, a.caminho, 1001, a.modificado), false, "arquivo alterado e outra versao");
+  assert.equal(listarArquivosDaPasta(db, U).length, 1);
+  assert.equal(nomeDoBackupMensal("2026-10"), "controle-financeiro-2026-10.cfbackup");
+  assert.throws(() => nomeDoBackupMensal("2026-13"));
+  apagarDados(db, "movimentacoes");
+  assert.equal(listarArquivosDaPasta(db, U).length, 0, "depois de zerar, a pasta volta a ser lida por inteiro");
+  registrarArquivoDaPasta(db, U, { ...a, status: "importado" });
+  assert.equal(reiniciarRegistroDaPasta(db, U), 1);
 });

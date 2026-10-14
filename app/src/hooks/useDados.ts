@@ -1,11 +1,15 @@
 import { useFocusEffect, useNavigation } from "expo-router";
-import { createElement, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { DeviceEventEmitter } from "react-native";
 import { BotaoIcone } from "../components/ui";
 
 /**
  * Carrega dados ao abrir a tela, ao voltar a ela e quando o usuário puxa para atualizar ou toca no botão do cabeçalho.
  * Erros viram mensagem em `erro`, nunca exceção solta.
  */
+/** Evento emitido quando os dados mudam por fora da tela aberta (por exemplo, importacao automatica da pasta). */
+export const EVENTO_DADOS_MUDARAM = "dados-mudaram";
+
 export function useDados<T>(carregar: () => Promise<T>, deps: unknown[] = []) {
   const [dados, setDados] = useState<T | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -34,6 +38,11 @@ export function useDados<T>(carregar: () => Promise<T>, deps: unknown[] = []) {
       void recarregar();
     }, [recarregar]),
   );
+  // Importacoes automaticas (pasta de documentos) e outras mudancas feitas fora da tela avisam por aqui.
+  useEffect(() => {
+    const assinatura = DeviceEventEmitter.addListener(EVENTO_DADOS_MUDARAM, () => void recarregar());
+    return () => assinatura.remove();
+  }, [recarregar]);
   return { dados, erro, carregando, recarregar, setDados };
 }
 

@@ -5,13 +5,14 @@ import { ITEM_RECEITA } from "../../../../core/src/index";
 import { BarraProgresso } from "../../components/barra-progresso";
 import { Icone } from "../../components/icone";
 import { EditorItem, EscolherCategoria, SugestaoMedia, type AlvoEdicao } from "../../components/orcamento-folhas";
+import { EvolucaoClasses, ParticipacaoClasses } from "../../components/participacao-classes";
 import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
 import { Aviso, Botao, Cartao, Texto } from "../../components/ui";
 import { useBotaoAtualizar, useDados } from "../../hooks/useDados";
 import { api, type PainelOrcamento } from "../../lib/api";
-import { formatarBRL, mesAtual, mudarMes, nomeMes } from "../../lib/format";
+import { formatarBRL, formatarPercentual, mesAtual, mudarMes, nomeMes } from "../../lib/format";
 
 type Classe = PainelOrcamento["classes"][number];
 type Item = Classe["itens"][number];
@@ -60,6 +61,11 @@ function LinhaItem({ item, onPress }: { item: Item; onPress: () => void }) {
         <Par rotulo="Planejado" valor={semPlano ? "sem valor planejado" : formatarBRL(item.planejado_centavos)} vazio={semPlano} />
       </View>
       <BarraProgresso planejado={item.planejado_centavos} realizado={item.realizado_centavos} />
+      {item.aplicado_centavos !== undefined ? (
+        <Text style={{ color: t.suave, fontSize: 12 }}>
+          {`Caixinhas: aplicado ${formatarBRL(item.aplicado_centavos)}, resgatado ${formatarBRL(item.resgatado_centavos ?? 0)}. O resgate é uso do que foi provisionado e não reduz o realizado abaixo de zero.`}
+        </Text>
+      ) : null}
       <Text style={{ color: t.suave, fontSize: 12 }}>
         {item.origem_plano ? `Origem do valor: ${ORIGEM[item.origem_plano]}` : "Origem do valor: não definida"}
         {item.pendentes > 0 ? ` · ${item.pendentes} pendente(s) de revisão` : ""}
@@ -83,7 +89,9 @@ function SecaoClasse({ classe, aberta, onAlternar, onItem }: { classe: Classe; a
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Par rotulo="Total realizado" valor={formatarBRL(classe.realizado_centavos)} />
               <Par rotulo="Total planejado" valor={classe.planejado_centavos > 0 ? formatarBRL(classe.planejado_centavos) : "sem valor planejado"} vazio={classe.planejado_centavos <= 0} />
+              <Par rotulo="Na receita" valor={formatarPercentual(classe.percentual_receita)} cor={classe.acima_do_limite ? t.perigo : undefined} vazio={classe.percentual_receita === null} />
             </View>
+            {classe.limite_percentual !== null ? <Text style={{ color: classe.acima_do_limite ? t.perigo : t.suave, fontSize: 12 }}>{classe.acima_do_limite ? `Acima do limite de ${formatarPercentual(classe.limite_percentual, 0)} da receita.` : `Dentro do limite de ${formatarPercentual(classe.limite_percentual, 0)} da receita.`}</Text> : null}
             <BarraProgresso planejado={classe.planejado_centavos} realizado={classe.realizado_centavos} />
           </>
         ) : (
@@ -244,6 +252,9 @@ export default function Orcamento() {
               )}
               {painel.pendentes > 0 ? <Aviso tipo="info">{`${painel.pendentes} lançamento(s) pendente(s) de revisão entram nos totais realizados; confirme no botão de revisão do Início.`}</Aviso> : null}
             </Cartao>
+
+            <ParticipacaoClasses painel={painel} aoMudar={recarregar} />
+            <EvolucaoClasses mesFim={mes} />
 
             {semOrcamento ? (
               <Cartao titulo="Orçamento ainda não definido">

@@ -100,3 +100,9 @@ export function dataParaISO(texto: string, anoReferencia: number): string | null
   if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return null;
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
+
+/** 0,295 -> "29,5%"; nulo vira "sem base". */
+export function formatarPercentual(fracao: number | null, casas = 1): string {
+  if (fracao === null) return "sem base";
+  return `${(fracao * 100).toFixed(casas).replace(".", ",")}%`;
+}

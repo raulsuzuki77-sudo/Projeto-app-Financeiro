@@ -2,6 +2,8 @@ export interface Fatia {
   id: string;
   rotulo: string;
   valor: number;
+  /** Cor própria da fatia (para o mesmo item ter a mesma cor em outros gráficos); sem ela, vale a paleta por ordem. */
+  cor?: string;
 }
 
 export interface FatiaGeometria extends Fatia {
@@ -46,7 +48,7 @@ export function geometriaPizza(dados: Fatia[], tamanho: number, espessura = 0.34
   return dados.map((d, i) => {
     const fracao = d.valor / total;
     const fim = ang + fracao * Math.PI * 2;
-    const g: FatiaGeometria = { ...d, fracao, caminho: caminhoAnel(c, c, rExt, rInt, ang, fim), cor: d.id === "__outras" ? PALETA[PALETA.length - 1]! : PALETA[i % (PALETA.length - 1)]! };
+    const g: FatiaGeometria = { ...d, fracao, caminho: caminhoAnel(c, c, rExt, rInt, ang, fim), cor: d.cor ?? (d.id === "__outras" ? PALETA[PALETA.length - 1]! : PALETA[i % (PALETA.length - 1)]!) };
     ang = fim;
     return g;
   });

@@ -8,17 +8,28 @@ import { Aviso, Botao, BotaoIcone, Campo, Cartao, Texto } from "./ui";
 
 type Gasto = Awaited<ReturnType<typeof api.candidatosParaEvento>>[number];
 
+const FORMAS: Record<string, string> = { credito: "cartão de crédito", debito: "débito", pix: "Pix", boleto: "boleto", dinheiro: "dinheiro", transferencia: "transferência" };
+
+/** Uma linha de gasto com tudo o que identifica a compra: descrição inteira, data e hora, categoria, forma de pagamento, cartão, parcela e o texto original do extrato. */
 function Linha({ g, marcado, aoAlternar }: { g: Gasto; marcado: boolean; aoAlternar: () => void }) {
   const t = useTema();
-  const dist = g.distancia_dias > 0 ? ` · ${g.distancia_dias} dia(s) fora do período` : "";
+  const dist = g.distancia_dias > 0 ? `${g.distancia_dias} dia(s) fora do período` : "dentro do período";
+  const forma = g.forma_pagamento ? FORMAS[g.forma_pagamento] ?? g.forma_pagamento : null;
+  const meio = [forma, g.cartao ? `cartão ${g.cartao}` : null, g.parcela_total ? `parcela ${g.parcela_atual ?? "?"}/${g.parcela_total}` : null].filter(Boolean).join(" · ");
+  // O texto original so aparece quando acrescenta algo a descricao simplificada.
+  const original = g.texto_bruto && g.texto_bruto.trim() !== g.descricao.trim() ? g.texto_bruto.trim() : null;
   return (
     <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: marcado }} accessibilityLabel={`${g.descricao}, ${formatarBRL(g.valor_centavos)}, ${dataBR(g.data_local)}`} onPress={aoAlternar} style={[estilos.linha, { borderColor: marcado ? t.primaria : t.borda, backgroundColor: marcado ? t.suave2 : "transparent" }]}>
       <View style={[estilos.caixa, { borderColor: marcado ? t.primaria : t.suave, backgroundColor: marcado ? t.primaria : "transparent" }]}>
         {marcado ? <Text style={{ color: t.sobrePrimaria, fontSize: 14, fontWeight: "800" }}>✓</Text> : null}
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: t.texto, fontSize: 15, fontWeight: "600" }} numberOfLines={2}>{g.descricao}</Text>
-        <Text style={{ color: t.suave, fontSize: 12 }} numberOfLines={2}>{dataBR(g.data_local)} · {rotuloCompleto(g.categoria)}{dist}{g.evento_id ? " · já está em outro evento" : ""}</Text>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: t.texto, fontSize: 15, fontWeight: "700" }}>{g.descricao}</Text>
+        <Text style={{ color: t.suave, fontSize: 13 }}>{dataBR(g.data_local)}{g.hora_local !== null ? ` às ${String(g.hora_local).padStart(2, "0")}h` : ""} · {dist}</Text>
+        <Text style={{ color: t.suave, fontSize: 13 }}>{rotuloCompleto(g.categoria)}</Text>
+        {meio ? <Text style={{ color: t.suave, fontSize: 13 }}>{meio}</Text> : null}
+        {original ? <Text style={{ color: t.suave, fontSize: 12, fontStyle: "italic" }} numberOfLines={4}>No extrato: {original}</Text> : null}
+        {g.evento_id ? <Text style={{ color: t.alerta, fontSize: 12, fontWeight: "600" }}>Já está em outro evento: marcar o move para este.</Text> : null}
       </View>
       <Text style={{ color: t.texto, fontSize: 15, fontWeight: "700" }}>{formatarBRL(g.valor_centavos)}</Text>
     </Pressable>
@@ -97,7 +108,7 @@ export function VincularGastos({ visivel, eventoId, aoFechar, aoVincular }: { vi
 const estilos = StyleSheet.create({
   raiz: { flex: 1, paddingTop: 12 },
   topo: { flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 8 },
-  linha: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, padding: 10, minHeight: 56 },
+  linha: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderWidth: 1, borderRadius: 12, padding: 10, minHeight: 56 },
   caixa: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   rodape: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, borderTopWidth: 1 },
 });
