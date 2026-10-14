@@ -14,6 +14,9 @@ function deslocar(mes: string, delta: number): string {
   return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
 }
 
+const MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const nomeMesPt = (mes: string): string => `${MESES_PT[Number(mes.slice(5)) - 1]} de ${mes.slice(0, 4)}`;
+
 /** Arredondamento simetrico em torno de zero. */
 const arred = (x: number): number => (x < 0 ? -Math.round(-x) : Math.round(x));
 
@@ -477,7 +480,7 @@ export function variacaoDoMes(db: Db, usuarioId: string, mes: string): VariacaoD
 
   let motivo: string | null = null;
   if (atual.sem_dados) motivo = "Não há posições até este mês.";
-  else if (anterior.sem_dados) motivo = `Não há posições de ${ant} para comparar.`;
+  else if (anterior.sem_dados) motivo = `Não há posições de ${nomeMesPt(ant)} para comparar.`;
   else if (!cambioOk) motivo = "Falta a taxa de câmbio de uma conta em moeda estrangeira (neste mês ou no anterior).";
   else if (semCambio > 0) motivo = "Há movimentos em moeda estrangeira sem taxa de câmbio.";
   else {
@@ -485,7 +488,7 @@ export function variacaoDoMes(db: Db, usuarioId: string, mes: string): VariacaoD
     if (doMes.length === 0) motivo = "Nenhuma posição foi informada para este mês: os dados são de meses anteriores.";
     else {
       const semBase = doMes.filter((c) => !anterior.contas.some((a) => a.instituicao === c.instituicao && a.conta === c.conta && a.moeda === c.moeda && !a.defasado));
-      if (semBase.length > 0) motivo = `Sem posição de ${ant} para: ${semBase.map(nomeConta).join(", ")}.`;
+      if (semBase.length > 0) motivo = `Sem posição de ${nomeMesPt(ant)} para: ${semBase.map(nomeConta).join(", ")}.`;
     }
   }
   const rent = motivo === null && variacao !== null ? variacao - liquidos : null;

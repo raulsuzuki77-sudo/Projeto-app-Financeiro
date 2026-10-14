@@ -296,7 +296,7 @@ test("rentabilidade estimada so existe com snapshot do mes anterior para as mesm
   let v = variacaoDoMes(db, U, "2026-08");
   assert.equal(v.rentabilidade_estimada_centavos, null);
   assert.equal(v.variacao_centavos, null);
-  assert.match(v.motivo_indisponivel!, /2026-07/);
+  assert.match(v.motivo_indisponivel!, /julho de 2026/);
   // conta nova em setembro: nao ha base comparavel para ela
   salvarExtrato(db, U, extrato({ mes: "2026-09", conta: "1111", posicoes: [pos("caixa", "A", 110000)] }), "h2");
   salvarExtrato(db, U, extrato({ mes: "2026-09", conta: "2222", instituicao: "Outro", posicoes: [pos("caixa", "B", 50000)] }), "h3");

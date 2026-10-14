@@ -9,9 +9,24 @@ import {
   type NovaRecorrencia, type Premissa, type Recorrencia, type ResumoMensal, type Status, type Sugestao,
 } from "../../../core/src/index";
 import { obterBanco } from "../data/banco";
+import {
+  adicionarPosicaoManual as adicionarPosicaoManualInv, aportesLancamentos, definirCambio as definirCambioInv, evolucaoPatrimonio, extratoJaImportado, listarCambios, listarExtratos,
+  movimentosDoMes, patrimonio as patrimonioInv, removerCambio as removerCambioInv, removerExtrato, removerPosicao as removerPosicaoInv, salvarExtrato as salvarExtratoInv, variacaoDoMes,
+  type ExtratoLido, type PosicaoManual,
+} from "../../../core/src/index";
 
 export type { ClasseId, NovoEvento, PainelOrcamento, RecorrenteDetectada, Cartao, CenarioMeta, Lancamento, LancamentoManual, Meta, Recorrencia, ResumoMensal, Sugestao, EdicaoCompleta };
 export type PremissaApi = Premissa;
+export type { ExtratoLido, PosicaoManual };
+export type DadosLiberdade = {
+  patrimonio: ReturnType<typeof patrimonioInv>;
+  variacao: ReturnType<typeof variacaoDoMes>;
+  evolucao: ReturnType<typeof evolucaoPatrimonio>;
+  movimentos: ReturnType<typeof movimentosDoMes>;
+  lancamentos: ReturnType<typeof aportesLancamentos>;
+  extratos: ReturnType<typeof listarExtratos>;
+  cambios: ReturnType<typeof listarCambios>;
+};
 export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
 export type Reserva = ReturnType<typeof reservaDeEmergencia>;
 export type MapaCalor = ReturnType<typeof mapaCalor>;
@@ -123,4 +138,28 @@ export const api = {
   },
   reserva: async (meses: number) => reservaDeEmergencia(obterBanco(), USUARIO, meses),
   poupanca: async () => capacidadePoupanca(obterBanco(), USUARIO),
+
+  /** Liberdade financeira: tudo o que a aba mostra para o mês (AAAA-MM), numa só leitura. */
+  liberdade: async (mes: string) => {
+    const db = obterBanco();
+    return {
+      patrimonio: patrimonioInv(db, USUARIO, mes),
+      variacao: variacaoDoMes(db, USUARIO, mes),
+      evolucao: evolucaoPatrimonio(db, USUARIO, mes, 12),
+      movimentos: movimentosDoMes(db, USUARIO, mes),
+      lancamentos: aportesLancamentos(db, USUARIO, mes),
+      extratos: listarExtratos(db, USUARIO),
+      cambios: listarCambios(db, USUARIO),
+    };
+  },
+  /** O arquivo (pelo hash do conteúdo) já foi importado? */
+  extratoInvestimentoImportado: async (hash: string) => extratoJaImportado(obterBanco(), USUARIO, hash),
+  /** Grava o extrato já lido e confirmado pelo usuário. Idempotente pelo hash: reimportar devolve status "ja_importado". */
+  salvarExtratoInvestimento: async (extrato: ExtratoLido, hash: string) => salvarExtratoInv(obterBanco(), USUARIO, extrato, hash),
+  removerExtratoInvestimento: async (id: number) => removerExtrato(obterBanco(), USUARIO, id),
+  adicionarPosicaoInvestimento: async (p: PosicaoManual) => adicionarPosicaoManualInv(obterBanco(), USUARIO, p),
+  removerPosicaoInvestimento: async (id: number) => removerPosicaoInv(obterBanco(), USUARIO, id),
+  /** Taxa em reais por unidade da moeda (ex.: 5,4321 para o dólar). */
+  definirCambio: async (mes: string, moeda: string, taxa: number) => definirCambioInv(obterBanco(), USUARIO, mes, moeda, taxa),
+  removerCambio: async (mes: string, moeda: string) => removerCambioInv(obterBanco(), USUARIO, mes, moeda),
 };

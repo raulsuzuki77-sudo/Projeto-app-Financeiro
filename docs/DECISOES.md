@@ -218,3 +218,17 @@ Revisão. A aba Revisar foi substituída por um botão circular flutuante no In�
 
 Liberdade financeira: ver o item 17.
 
+## 17. Aba Liberdade financeira: extratos de investimento (14/10/2026)
+
+Origem: dois extratos de exemplo enviados pelo usuário, do BTG Pactual: o Extrato da Conta Investimento (Brasil, em reais) e o Account Statement da BTG Pactual US Capital (em dólares). Os PDFs não entram no repositório; os testes usam texto sintético no mesmo formato (`core/test/fixtures-investimentos/`). CPF, endereço, nome e número completo da conta nunca são lidos nem gravados: a conta guarda só os quatro últimos caracteres.
+
+Leitura: dois leitores (`core/src/investimentos/`) operam sobre linhas de texto, tolerando colunas em linhas separadas. Cada extrato traz uma conferência: a soma das posições é comparada com o total declarado e com os totais de cada seção (nas amostras reais todas fecharam, diferença zero: Brasil R$ 27.933,89 em 16 posições; EUA US$ 3.736,84 em 3 posições). Divergência nunca é descartada em silêncio: aparece destacada na prévia e nada é gravado antes da confirmação do usuário. Reimportar o mesmo arquivo não duplica (identificado pelo hash); um novo extrato da mesma conta e do mesmo mês substitui as posições anteriores. Um rendimento que aparece duas vezes no mesmo extrato (na conta corrente e na renda variável) é contado uma só vez, com aviso.
+
+Moeda: valores em dólar são convertidos pela taxa que o usuário informa por mês (sem taxa, a conta em dólar fica fora do total em reais, com aviso). O patrimônio de cada conta no mês usa o último extrato disponível até aquele mês e marca como defasado quando é de um mês anterior.
+
+Visões: patrimônio total (a mesma soma por classe de ativo e por instituição), evolução de 12 meses, posições recolhíveis, aportes do mês (movimentos dos extratos ao lado dos lançamentos do app do tipo investimento), câmbio, extratos importados com conferência, posição manual e comparação com as metas. Rentabilidade estimada = variação do patrimônio menos aportes registrados nos extratos (inclui contribuição de previdência em trânsito); é sempre rotulada como estimativa, só calculada quando cada conta tem posição no mês anterior e, nas contas em dólar, embute a variação cambial.
+
+Achado técnico: na versão web, o pdf.js devolve "a" e ligaturas como caracteres nulos neste PDF (fonte Type 3) e parte palavras em trechos; a aba usa um extrator próprio (`extrato-pdf.web.ts`) que junta os trechos e corrige o "a". As ligaturas continuam erradas em textos descritivos ("financeiro" vira "ananceiro"), sem efeito nos valores, que a conferência protege.
+
+NÃO verificado: a leitura no iPhone (o texto do PDF vem do PDFKit, cujas quebras de linha podem diferir; os leitores foram testados com três formatos de linha simulados, mas não com o PDFKit real). Se falhar, a leitura acusa erro ou divergência, nunca grava em silêncio; alternativa: importar na versão para computador e levar o backup cifrado ao iPhone. Cobertura de layouts: só BTG Brasil e BTG EUA. Transferências ACATS da conta americana trazem valor zero no extrato e não entram nos aportes.
+

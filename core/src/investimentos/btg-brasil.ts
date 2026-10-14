@@ -48,7 +48,7 @@ function cabecalho(n: string, original: string): { tipo: Secao["tipo"]; sub: str
   if (/^conta corrente\s*-\s*movimentacao/.test(n)) return { tipo: "cc_mov", sub: "" };
   if (/^valores em transito\s*-\s*renda variavel/.test(n)) return { tipo: "tr_rv", sub: "" };
   if (/^valores em transito\s*-\s*previdencia/.test(n)) return { tipo: "tr_prev", sub: "" };
-  if (/^(distribuicao (setorial|da carteira)|perfil de risco)/.test(n)) return { tipo: "ignorar", sub: "" };
+  if (/^(distribuicao (setorial|da carteira)|per\S{0,3}l de risco)/.test(n)) return { tipo: "ignorar", sub: "" };
   return null;
 }
 
@@ -90,15 +90,15 @@ function blocos(toks: string[], ancoras: number[]): string[][] {
   return out;
 }
 
-/** Valor da linha "Total ..." da secao (ultima celula numerica depois da palavra Total), ou null. */
+/** Valor da linha "Total ..." da secao: primeiro numero depois da palavra Total (palavras como "em Ações R$" ficam de lado). */
 function totalDaSecao(toks: string[]): number | null {
   const i = toks.findIndex((x) => sa(x) === "total");
   if (i < 0) return null;
-  const resto = toks.slice(i + 1);
-  const { celulas } = separarCelulas(resto);
-  for (let j = celulas.length - 1; j >= 0; j--) {
-    const v = valorCelula(celulas[j]);
+  for (const t of toks.slice(i + 1)) {
+    if (ehTraco(t)) continue;
+    const v = centavosBR(t);
     if (v !== null) return v;
+    if (ehData(t) || RE_TICKER.test(t)) return null;
   }
   return null;
 }
