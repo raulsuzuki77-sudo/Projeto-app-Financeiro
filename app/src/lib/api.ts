@@ -1,30 +1,46 @@
 import {
-  alterarLancamento, atualizarMeta, calendarioMensal, capacidadePoupanca, cenariosDaMeta, criarCartao, criarMeta, lerPremissas, listarCartoes,
-  listarLancamentos, listarMetas, mapaCalor, processarMensagem, removerCartao, removerMeta, reservaDeEmergencia, resumoMensal, salvarPremissa,
-  type Cartao, type Lancamento, type Meta, type Natureza, type Premissa, type ResumoMensal, type Status, type CenarioMeta,
+  alterarLancamento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
+  criarRecorrencia, editarLancamento, excluirLancamento, gerarRecorrencias, lancarManual, lerPremissas, listarCartoes, listarLancamentos, listarMetas,
+  listarRecorrencias, mapaCalor, obterLancamento, paraLocal, processarMensagem, removerCartao, removerMeta, removerRecorrencia, reservaDeEmergencia,
+  restaurarLancamento, resumoMensal, salvarPremissa, sugerirCategorias,
+  type Cartao, type CenarioMeta, type EdicaoCompleta, type FiltroLancamentos, type Lancamento, type LancamentoManual, type Meta, type Natureza,
+  type NovaRecorrencia, type Premissa, type Recorrencia, type ResumoMensal, type Status, type Sugestao,
 } from "../../../core/src/index";
 import { obterBanco } from "../data/banco";
 
-export type { Cartao, Lancamento, Meta, ResumoMensal, CenarioMeta };
+export type { Cartao, CenarioMeta, Lancamento, LancamentoManual, Meta, Recorrencia, ResumoMensal, Sugestao, EdicaoCompleta };
 export type PremissaApi = Premissa;
 export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
 export type Reserva = ReturnType<typeof reservaDeEmergencia>;
 export type MapaCalor = ReturnType<typeof mapaCalor>;
 
-/** Aplicativo de um unico usuario: o identificador existe so para manter o schema compativel com o servidor opcional. */
+/** Aplicativo de um único usuário: o identificador existe só para manter o schema compatível com o servidor opcional. */
 export const USUARIO = "local";
 
 let seq = 0;
 const novoId = () => `app-${Date.now()}-${++seq}-${Math.random().toString(36).slice(2)}`;
+const hoje = () => paraLocal(new Date()).data_local;
 
 /**
- * Fachada local: as telas chamam estas funcoes e tudo roda no iPhone (SQLite local + nucleo compartilhado).
- * Mantida assincrona para que as telas nao dependam de onde a logica roda.
+ * Fachada local: as telas chamam estas funções e tudo roda no iPhone (SQLite local + núcleo compartilhado).
+ * Mantida assíncrona para que as telas não dependam de onde a lógica roda.
  */
 export const api = {
   enviarMensagem: async (texto: string) => ({ resposta: processarMensagem(obterBanco(), { id: novoId(), usuario_id: USUARIO, texto, recebida_em: new Date(), origem: "texto_manual" }) }),
-  lancamentos: async (q: { mes?: string; status?: string }) => listarLancamentos(obterBanco(), USUARIO, q) as Lancamento[],
+  lancar: async (l: LancamentoManual) => lancarManual(obterBanco(), USUARIO, l, novoId()),
+
+  lancamentos: async (q: FiltroLancamentos) => listarLancamentos(obterBanco(), USUARIO, q) as Lancamento[],
+  lancamento: async (id: number) => {
+    const l = obterLancamento(obterBanco(), id);
+    return l && l.usuario_id === USUARIO ? l : undefined;
+  },
   alterar: async (id: number, dados: { categoria?: string; natureza?: Natureza; status?: Status }) => alterarLancamento(obterBanco(), id, USUARIO, dados),
+  editar: async (id: number, dados: EdicaoCompleta) => editarLancamento(obterBanco(), id, USUARIO, dados),
+  excluir: async (id: number) => excluirLancamento(obterBanco(), id, USUARIO),
+  restaurar: async (id: number) => restaurarLancamento(obterBanco(), id, USUARIO),
+  classificarLote: async (id: number, categoria: string, similares = true) => classificarEmLote(obterBanco(), id, USUARIO, categoria, similares),
+  sugestoes: async (descricao: string, tipo: "despesa" | "receita" | "investimento" = "despesa") => sugerirCategorias(obterBanco(), USUARIO, descricao, tipo),
+
   resumo: async (mes: string) => resumoMensal(obterBanco(), USUARIO, mes),
   mapaCalor: async (de: string, ate: string) => mapaCalor(obterBanco(), USUARIO, de, ate),
   calendario: async (mes: string) => calendarioMensal(obterBanco(), USUARIO, mes),
@@ -32,6 +48,13 @@ export const api = {
   cartoes: async () => listarCartoes(obterBanco(), USUARIO),
   criarCartao: async (c: { apelido: string; ultimos4?: string | null }) => criarCartao(obterBanco(), USUARIO, c),
   removerCartao: async (id: number) => removerCartao(obterBanco(), USUARIO, id),
+
+  recorrencias: async () => listarRecorrencias(obterBanco(), USUARIO),
+  criarRecorrencia: async (r: NovaRecorrencia) => criarRecorrencia(obterBanco(), USUARIO, r, hoje()),
+  atualizarRecorrencia: async (id: number, p: Parameters<typeof atualizarRecorrencia>[3]) => atualizarRecorrencia(obterBanco(), USUARIO, id, p),
+  removerRecorrencia: async (id: number) => removerRecorrencia(obterBanco(), USUARIO, id),
+  /** Gera os lançamentos de recorrências que já venceram. Chamada ao abrir o app e ao atualizar. */
+  gerarRecorrencias: async () => gerarRecorrencias(obterBanco(), USUARIO, hoje()),
 
   premissas: async () => lerPremissas(obterBanco(), USUARIO),
   salvarPremissa: async (p: { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null }) => {
@@ -44,7 +67,7 @@ export const api = {
   removerMeta: async (id: number) => ({ ok: removerMeta(obterBanco(), USUARIO, id) }),
   cenarios: async (id: number, aporteCentavos?: number) => {
     const meta = listarMetas(obterBanco(), USUARIO).find((m) => m.id === id);
-    if (!meta) throw new Error("Meta nao encontrada.");
+    if (!meta) throw new Error("Meta não encontrada.");
     return cenariosDaMeta(obterBanco(), USUARIO, meta, aporteCentavos);
   },
   reserva: async (meses: number) => reservaDeEmergencia(obterBanco(), USUARIO, meses),

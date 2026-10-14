@@ -27,3 +27,4 @@ export * from "./adaptadores/expo-sqlite";
 export * from "./ocr/linhas";
 export * from "./recorrencias/recorrencias";
 export * from "./classification/categorias";
+export * from "./ingest/manual";

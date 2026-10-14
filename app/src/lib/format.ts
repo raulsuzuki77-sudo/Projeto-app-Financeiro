@@ -1,5 +1,9 @@
+/** "R$ 1.234,56" sem depender de Intl (idêntico em Node, no navegador e no Hermes). */
 export function formatarBRL(centavos: number): string {
-  return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const neg = centavos < 0;
+  const abs = Math.abs(Math.round(centavos));
+  const reais = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${neg ? "-" : ""}R$ ${reais},${String(abs % 100).padStart(2, "0")}`;
 }
 
 export function mesAtual(hoje: Date = new Date()): string {
@@ -12,10 +16,11 @@ export function mudarMes(mes: string, delta: number): string {
   return mesAtual(d);
 }
 
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
 export function nomeMes(mes: string): string {
   const [a, m] = mes.split("-").map(Number) as [number, number];
-  const nome = new Date(a, m - 1, 1).toLocaleDateString("pt-BR", { month: "long" });
-  return `${nome} de ${a}`;
+  return `${MESES[m - 1]} de ${a}`;
 }
 
 export function ultimoDia(mes: string): string {
@@ -23,12 +28,7 @@ export function ultimoDia(mes: string): string {
   return `${mes}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`;
 }
 
-export function rotuloCategoria(c: string): string {
-  const t = c.replace(/_/g, " ");
-  return t.charAt(0).toUpperCase() + t.slice(1);
-}
-
-export const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+export const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 /** Intensidade 0..1 relativa ao maior valor; 0 quando não há máximo. */
 export function intensidade(valor: number, maximo: number): number {
@@ -64,4 +64,22 @@ export function percentualParaFracao(texto: string): number | null {
   if (!/^\d+(\.\d+)?$/.test(t)) return null;
   const n = Number(t);
   return n >= 0 && n <= 100 ? n / 100 : null;
+}
+
+/** "13/10/2026" para uma data AAAA-MM-DD. */
+export function dataBR(d: string): string {
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+}
+
+/** Converte "dd/mm/aaaa" (ou "dd/mm") em AAAA-MM-DD; null se inválida. Sem ano, usa o ano de referência. */
+export function dataParaISO(texto: string, anoReferencia: number): string | null {
+  const m = texto.trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (!m) return null;
+  const dia = Number(m[1]);
+  const mes = Number(m[2]);
+  let ano = m[3] ? Number(m[3]) : anoReferencia;
+  if (ano < 100) ano += 2000;
+  const d = new Date(Date.UTC(ano, mes - 1, dia));
+  if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return null;
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }

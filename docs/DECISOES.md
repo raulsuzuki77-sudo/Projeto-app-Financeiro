@@ -123,3 +123,21 @@ Sintoma (primeiro teste em aparelho, com Xcode recente e iPhone atual): o app in
 Causa: o template de projeto do Expo SDK 57 (`expo-template-bare-minimum` 57.0.30) ainda nao adota scenes, embora o pacote `expo` 57.0.28 ja traga as classes nativas `ExpoAppSceneDelegate` e `ExpoReactNativeFactoryProvider`. O template do SDK 58 (58.0.18) adota.
 
 Correcao: plugin de configuracao local `app/plugins/with-scene-lifecycle.js`, registrado em `app.json`, que reproduz no projeto gerado a mesma alteracao do template do SDK 58: manifesto de scenes no Info.plist, `SceneDelegate.swift` incluido no alvo do Xcode e `AppDelegate` conformando com `ExpoReactNativeFactoryProvider` sem criar a janela. E idempotente e falha com mensagem clara se o template mudar. Verificado em Linux: o `expo prebuild` gera os tres ajustes, o projeto referencia o novo arquivo na mesma convencao dos demais e uma segunda execucao nao altera nada. NAO verificado: a compilacao e a execucao no aparelho (aguardando teste do usuario). Alternativa descartada: migrar todo o projeto para o SDK 58 (versao `next`), por risco maior.
+
+## 12. Segunda versao do app: navegacao, classificacao e previa web (14/10/2026)
+
+Pedidos do usuario atendidos nesta versao (itens a a l do pedido):
+
+- Navegacao: 4 abas (Inicio, Extrato, Revisar, Painel) e painel lateral ocultavel (botao de menu) com as opcoes menos usadas: importar documento, gastos recorrentes, metas e cenarios, cartoes e senhas de PDF, backup e seguranca. Botao de atualizar em todas as abas.
+- Inicio: grafico de pizza dos gastos por categoria no mes (apenas saidas classificadas; o valor sem categoria e informado a parte para nao distorcer o grafico) e formulario de lancamento com campos fixos (entrada ou saida, valor, detalhamento) sempre abertos.
+- Revisao: ate tres sugestoes de categoria por item (historico confirmado, regras e estabelecimentos parecidos), classificacao com um toque, aplicada tambem a itens parecidos; botoes de editar e excluir em cada item.
+- Classificacao refinada: camadas em ordem de precedencia (regras do usuario, historico confirmado, regras base, estabelecimentos parecidos, nenhuma). Nada e classificado por palpite sem sinal: sem sinal suficiente, o item vai para revisao.
+- Correcao de registros: editar (com trilha de auditoria e recalculo do hash), excluir com opcao de desfazer, e correcao em lote.
+- Gastos recorrentes: cadastro de aluguel, assinaturas e salario; geracao idempotente (referencia unica por competencia), incluida no backup (schema versao 2).
+- Senha de PDF: guardada apenas no Keychain do iPhone (expo-secure-store), nunca no banco nem no backup. Desbloqueio nativo (PDFKit); mensagens distintas para PDF protegido e senha incorreta.
+- Receber PDF do menu Compartilhar: tipos de documento (PDF e imagem) declarados em `app.json` e redirecionamento em `+native-intent` para a tela de importacao. NAO verificado em aparelho: a exibicao do app na lista de compartilhamento depende do iOS.
+- Previa web: o mesmo codigo roda no navegador (react-native-web + sql.js) com dados ficticios de demonstracao (`app/src/data/semente.ts`), para iterar o layout sem o aparelho. Limites: nao exercita OCR, Face ID, Keychain nem compartilhamento. Dados reais nunca sao carregados na previa.
+- Script `preparar-mac.sh` passa a configurar o scheme do Xcode em Release (melhor esforco). A escolha do Team continua manual.
+
+Verificado: tipos, 61 testes do nucleo, 13 do servidor e 12 do app; compilacao do pacote iOS; `expo prebuild` gera os tipos de documento e o manifesto de scenes. NAO verificado: tudo o que depende do aparelho (Swift com senha de PDF, share sheet, telas nativas, desempenho).
+

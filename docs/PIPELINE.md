@@ -1,6 +1,6 @@
 # Pipeline do projeto
 
-Atualizado em 13/10/2026, apos a decisao de tornar o aplicativo 100% local no iPhone, sem custo.
+Atualizado em 14/10/2026 (segunda versao do app). Base: decisao de tornar o aplicativo 100% local no iPhone, sem custo.
 
 ## Concluido
 
@@ -13,12 +13,13 @@ Atualizado em 13/10/2026, apos a decisao de tornar o aplicativo 100% local no iP
 | L3 Aplicativo local | expo-sqlite, telas sem servidor, Face ID, backup/restauracao |
 | L4 OCR nativo | Modulo Swift (Vision + PDFKit) e agrupamento de linhas |
 | L5 Guia de instalacao | `docs/INSTALACAO_IPHONE.md` |
+| U1 a U4 Segunda versao | Nova navegacao, pizza, revisao rapida, recorrentes, edicao/exclusao, senha de PDF, PDF pelo Compartilhar, previa web (ver DECISOES, item 12) |
 
 ## Em aberto (depende do usuario)
 
 | Item | O que fazer | Quem |
 |---|---|---|
-| V1 Validar no aparelho | Compilar no Mac, seguir o roteiro de primeiro uso e reportar erros (principalmente de compilacao do Swift e qualidade do OCR) | Usuario, depois ajustes por mim |
+| V1 Validar no aparelho | Atualizar o projeto no Mac (Parte 6 do guia), compilar, seguir o roteiro de primeiro uso e reportar erros (principalmente de compilacao do Swift e qualidade do OCR) | Usuario, depois ajustes por mim |
 
 ## Proximas tarefas (apos V1)
 

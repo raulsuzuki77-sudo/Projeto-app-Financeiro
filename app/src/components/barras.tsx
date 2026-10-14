@@ -1,7 +1,8 @@
 import { View } from "react-native";
 import { useTema } from "./tema";
 import { Texto } from "./ui";
-import { formatarBRL, intensidade, rotuloCategoria } from "../lib/format";
+import { rotuloCategoria } from "../../../core/src/index";
+import { formatarBRL, intensidade } from "../lib/format";
 
 export function Barras({ dados }: { dados: { rotulo: string; valor: number }[] }) {
   const t = useTema();

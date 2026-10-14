@@ -67,6 +67,16 @@ principal() {
   printf 'export NODE_BINARY=%s\n' "$(command -v node)" > ios/.xcode.env.local
   ok "Caminho do Node gravado em ios/.xcode.env.local"
 
+  # Faz o botao Run do Xcode compilar em Release (o app instalado funciona sem o Mac ligado).
+  # Melhor esforco: se o arquivo do scheme nao existir ou ja estiver em Release, nada muda.
+  local scheme="ios/ControleFinanceiro.xcodeproj/xcshareddata/xcschemes/ControleFinanceiro.xcscheme"
+  if [[ -f "$scheme" ]]; then
+    sed -i '' '/<LaunchAction/,/>/ s/buildConfiguration = "Debug"/buildConfiguration = "Release"/' "$scheme" \
+      && ok "Scheme configurado para Release" || echo "  aviso: nao consegui ajustar o scheme; use Product > Scheme > Edit Scheme > Run > Release"
+  else
+    echo "  aviso: scheme nao encontrado; use Product > Scheme > Edit Scheme > Run > Release"
+  fi
+
   cat <<MSG
 
 Pronto. Proximo passo: abra no Xcode o arquivo

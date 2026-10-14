@@ -17,14 +17,14 @@ async function identificadorDoArquivo(uri: string): Promise<string> {
 
 function resumo(r: RelatorioImportacao): string {
   const partes = [`${r.lidos} itens lidos`, `${r.criados} novos`];
-  if (r.mesclados) partes.push(`${r.mesclados} unidos a lancamentos existentes`);
-  if (r.ja_processados) partes.push(`${r.ja_processados} ja importados antes`);
-  partes.push(`${r.pendentes} aguardando revisao`);
+  if (r.mesclados) partes.push(`${r.mesclados} unidos a lançamentos existentes`);
+  if (r.ja_processados) partes.push(`${r.ja_processados} já importados antes`);
+  partes.push(`${r.pendentes} aguardando revisão`);
   return partes.join(", ") + ".";
 }
 
 /** Le o arquivo escolhido e importa. Devolve texto pronto para exibir. Erros de leitura viram excecao com mensagem clara. */
-export async function importarArquivo(arq: { uri: string; nome: string }, tipo: TipoImportacao, cartaoId: number | null): Promise<string> {
+export async function importarArquivo(arq: { uri: string; nome: string }, tipo: TipoImportacao, cartaoId: number | null, senhaPdf?: string | null): Promise<string> {
   const db = obterBanco();
   const ext = extensao(arq.nome);
   const ctx = { usuario_id: USUARIO, cartao_id: cartaoId };
@@ -36,17 +36,17 @@ export async function importarArquivo(arq: { uri: string; nome: string }, tipo: 
     if (!r.ok) throw new Error(r.erro);
     const extras: string[] = [];
     if (r.rejeitadas?.length) extras.push(`${r.rejeitadas.length} linha(s) recusada(s): ${r.rejeitadas.slice(0, 3).map((x) => `linha ${x.linha} (${x.motivo})`).join("; ")}.`);
-    if (r.conciliacao) extras.push(r.conciliacao.fecha ? `Soma confere com o total da fatura (${formatarBRL(r.conciliacao.total_declarado_centavos)}).` : `ATENCAO: soma dos itens (${formatarBRL(r.conciliacao.soma_itens_centavos)}) difere do total (${formatarBRL(r.conciliacao.total_declarado_centavos)}); tudo foi para revisao.`);
+    if (r.conciliacao) extras.push(r.conciliacao.fecha ? `Soma confere com o total da fatura (${formatarBRL(r.conciliacao.total_declarado_centavos)}).` : `ATENÇÃO: soma dos itens (${formatarBRL(r.conciliacao.soma_itens_centavos)}) difere do total (${formatarBRL(r.conciliacao.total_declarado_centavos)}); tudo foi para revisão.`);
     return [resumo(r.relatorio), ...extras].join(" ");
   }
 
-  const linhas = await reconhecerTexto(arq.uri);
+  const linhas = await reconhecerTexto(arq.uri, senhaPdf);
   const id = await identificadorDoArquivo(arq.uri);
   if (tipo === "fatura") {
     const r = importarFatura(db, linhas, id, ctx);
-    if (!r.ok) throw new Error(`${r.erro}${r.nao_lidas.length ? ` (${r.nao_lidas.length} linha(s) nao lidas)` : ""}`);
+    if (!r.ok) throw new Error(`${r.erro}${r.nao_lidas.length ? ` (${r.nao_lidas.length} linha(s) não lidas)` : ""}`);
     const c = r.conciliacao;
-    const conc = c ? (c.fecha ? `Soma confere com o total da fatura (${formatarBRL(c.total_declarado_centavos)}).` : `ATENCAO: a soma dos itens (${formatarBRL(c.soma_itens_centavos)}) difere do total declarado (${formatarBRL(c.total_declarado_centavos)}); todos os itens foram para revisao.`) : "Total da fatura nao localizado para conferencia.";
+    const conc = c ? (c.fecha ? `Soma confere com o total da fatura (${formatarBRL(c.total_declarado_centavos)}).` : `ATENÇÃO: a soma dos itens (${formatarBRL(c.soma_itens_centavos)}) difere do total declarado (${formatarBRL(c.total_declarado_centavos)}); todos os itens foram para revisão.`) : "Total da fatura não localizado para conferência.";
     return `${resumo(r.relatorio)} ${conc}`;
   }
   const c = importarComprovante(db, linhas.map((l) => l.texto), id, ctx);

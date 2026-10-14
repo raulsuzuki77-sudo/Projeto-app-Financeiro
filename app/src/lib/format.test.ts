@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { percentualParaFracao, intensidade, mesAtual, mudarMes, reaisParaCentavos, ultimoDia, urlServidorValida } from "./format.ts";
+import { formatarBRL, nomeMes, dataBR, dataParaISO, percentualParaFracao, intensidade, mesAtual, mudarMes, reaisParaCentavos, ultimoDia, urlServidorValida } from "./format.ts";
 
 test("mes: navegacao e ultimo dia", () => {
   assert.equal(mudarMes("2026-01", -1), "2025-12");
@@ -36,4 +36,19 @@ test("percentual para fracao", () => {
   assert.equal(percentualParaFracao("10,5%"), 0.105);
   assert.equal(percentualParaFracao("150"), null);
   assert.equal(percentualParaFracao("x"), null);
+});
+
+test("datas brasileiras", () => {
+  assert.equal(dataBR("2026-10-05"), "05/10/2026");
+  assert.equal(dataParaISO("5/10/2026", 2026), "2026-10-05");
+  assert.equal(dataParaISO("05/10", 2026), "2026-10-05");
+  assert.equal(dataParaISO("31/02/2026", 2026), null);
+  assert.equal(dataParaISO("abc", 2026), null);
+});
+
+test("moeda e nome do mes sem Intl", () => {
+  assert.equal(formatarBRL(123456), "R$ 1.234,56");
+  assert.equal(formatarBRL(5), "R$ 0,05");
+  assert.equal(formatarBRL(-100000), "-R$ 1.000,00");
+  assert.equal(nomeMes("2026-03"), "março de 2026");
 });

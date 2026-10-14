@@ -149,3 +149,23 @@ test("rotulos de categoria em portugues e categoria personalizada", () => {
   assert.equal(rotuloCategoria("transporte_combustivel"), "Combustível");
   assert.equal(rotuloCategoria("minha_categoria"), "Minha categoria");
 });
+
+test("lancamento manual: validacao, categoria definida confirma, duplo toque nao duplica, futuro recusado", async () => {
+  const { lancarManual } = await import("../src/index");
+  const db = abrirBancoTeste();
+  const AGORA = new Date("2026-10-13T22:30:00Z"); // 19:30 em Sao Paulo
+  const r = lancarManual(db, U, { tipo: "despesa", valor_centavos: 4290, descricao: "Almoço equipe", forma_pagamento: "pix", categoria: "alimentacao_restaurante" }, "f1", AGORA);
+  assert.ok(r.resultado === "criado");
+  assert.equal(r.lancamento.status, "confirmado");
+  assert.equal(r.lancamento.data_local, "2026-10-13");
+  assert.equal(r.lancamento.precisao_horario, "aproximado");
+  assert.equal(lancarManual(db, U, { tipo: "despesa", valor_centavos: 4290, descricao: "Almoço equipe" }, "f1", AGORA).resultado, "ja_processado");
+  const s = lancarManual(db, U, { tipo: "despesa", valor_centavos: 500, descricao: "Xyzzy desconhecido" }, "f2", AGORA);
+  assert.ok(s.resultado === "criado" && s.lancamento.status === "pendente");
+  const ont = lancarManual(db, U, { tipo: "receita", valor_centavos: 100000, descricao: "Salário", data_local: "2026-10-12" }, "f3", AGORA);
+  assert.ok(ont.resultado === "criado" && ont.lancamento.hora_local === null && ont.lancamento.precisao_horario === "desconhecido" && ont.lancamento.categoria === "receita_trabalho");
+  assert.throws(() => lancarManual(db, U, { tipo: "despesa", valor_centavos: 0, descricao: "x" }, "f4", AGORA), /valor/);
+  assert.throws(() => lancarManual(db, U, { tipo: "despesa", valor_centavos: 1, descricao: " " }, "f5", AGORA), /detalhamento/);
+  assert.throws(() => lancarManual(db, U, { tipo: "despesa", valor_centavos: 1, descricao: "x", data_local: "2026-10-14" }, "f6", AGORA), /futuro/);
+  assert.throws(() => lancarManual(db, U, { tipo: "despesa", valor_centavos: 1, descricao: "x", data_local: "2026-02-30" }, "f7", AGORA), /Data inválida/);
+});

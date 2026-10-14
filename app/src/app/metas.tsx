@@ -3,13 +3,14 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTema } from "../components/tema";
 import { Aviso, Botao, Campo, Cartao, Texto } from "../components/ui";
+import { useBotaoAtualizar } from "../hooks/useDados";
 import { api, type CenariosDaMeta, type Meta, type PremissaApi, type Reserva } from "../lib/api";
 import { formatarBRL, percentualParaFracao, reaisParaCentavos } from "../lib/format";
 
 const TIPOS: { id: string; rotulo: string }[] = [
-  { id: "reserva_emergencia", rotulo: "Reserva de emergencia" },
+  { id: "reserva_emergencia", rotulo: "Reserva de emergência" },
   { id: "curto_prazo", rotulo: "Curto prazo" },
-  { id: "medio_prazo", rotulo: "Medio prazo" },
+  { id: "medio_prazo", rotulo: "Médio prazo" },
   { id: "longo_prazo", rotulo: "Longo prazo" },
 ];
 const PERFIS: { id: Meta["perfil"]; rotulo: string }[] = [
@@ -47,6 +48,7 @@ export default function Metas() {
     }
   }, []);
   useFocusEffect(useCallback(() => void carregar(), [carregar]));
+  useBotaoAtualizar(carregar);
 
   async function criar() {
     const valor = reaisParaCentavos(f.valor);
@@ -72,7 +74,7 @@ export default function Metas() {
       setErro(null);
       for (const p of prem) {
         const v = percentualParaFracao(edit[p.chave] ?? "");
-        if (v === null) return setErro(`Percentual invalido em ${p.chave}. Use numeros como 10 ou 10,5.`);
+        if (v === null) return setErro(`Percentual inválido em ${p.chave}. Use numeros como 10 ou 10,5.`);
         await api.salvarPremissa({ chave: p.chave, retorno_nominal_aa: v, ir_modo: p.ir_modo, ir_aliquota: p.ir_aliquota });
       }
       setAberta(null);
@@ -101,10 +103,10 @@ export default function Metas() {
     <ScrollView style={{ backgroundColor: t.fundo }} contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
       <Cartao titulo="Base real dos seus dados">
-        <Texto>Reserva de emergencia (6 meses): {reserva ? formatarBRL(reserva.valor_alvo_centavos) : "..."}</Texto>
-        <Texto suave>{reserva ? `Despesa essencial media: ${formatarBRL(reserva.media_mensal_centavos)} por mes.` : ""}</Texto>
-        <Texto>Sobra media mensal confirmada: {sobra === null ? "..." : formatarBRL(sobra)}</Texto>
-        {reserva && reserva.meses_sem_dados.length > 0 ? <Aviso tipo="info">{`Sem lancamentos essenciais confirmados em: ${reserva.meses_sem_dados.join(", ")}. A estimativa pode estar baixa; confirme os pendentes.`}</Aviso> : null}
+        <Texto>Reserva de emergência (6 meses): {reserva ? formatarBRL(reserva.valor_alvo_centavos) : "..."}</Texto>
+        <Texto suave>{reserva ? `Despesa essencial média: ${formatarBRL(reserva.media_mensal_centavos)} por mes.` : ""}</Texto>
+        <Texto>Sobra média mensal confirmada: {sobra === null ? "..." : formatarBRL(sobra)}</Texto>
+        {reserva && reserva.meses_sem_dados.length > 0 ? <Aviso tipo="info">{`Sem lançamentos essenciais confirmados em: ${reserva.meses_sem_dados.join(", ")}. A estimativa pode estar baixa; confirme os pendentes.`}</Aviso> : null}
       </Cartao>
 
       {metas.map((m) => (
@@ -112,18 +114,20 @@ export default function Metas() {
           <Texto forte>{m.nome}</Texto>
           <Texto suave>{formatarBRL(m.valor_alvo_centavos)} em {m.prazo_meses} meses (valores de hoje)</Texto>
           <Texto suave>Perfil escolhido: {NOME_CENARIO[m.perfil]}</Texto>
-          <Botao rotulo="Simular cenarios" onPress={() => ver(m)} secundario />
-          <Botao rotulo="Editar meta" onPress={() => editar(m)} secundario />
-          <Botao rotulo="Excluir meta" onPress={async () => { await api.removerMeta(m.id); setAberta(null); await carregar(); }} secundario />
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            <Botao rotulo="Simular cenários" pequeno onPress={() => ver(m)} />
+            <Botao rotulo="Editar" icone="editar" pequeno secundario onPress={() => editar(m)} />
+            <Botao rotulo="Excluir" icone="lixeira" pequeno perigo onPress={async () => { await api.removerMeta(m.id); setAberta(null); await carregar(); }} />
+          </View>
           {aberta?.meta.id === m.id ? (
             <View style={{ gap: 12 }}>
-              {aberta.premissas_padrao ? <Aviso tipo="info">Premissas de rentabilidade ainda sao valores ilustrativos do sistema, nao taxas atuais de mercado. Atualize-as com fontes oficiais antes de decidir.</Aviso> : null}
+              {aberta.premissas_padrao ? <Aviso tipo="info">Premissas de rentabilidade ainda são valores ilustrativos do sistema, não taxas atuais de mercado. Atualize-as com fontes oficiais antes de decidir.</Aviso> : null}
               {aberta.cenarios.map((c) => (
                 <View key={c.cenario} style={{ gap: 2, borderTopWidth: 1, borderTopColor: t.borda, paddingTop: 8 }} accessible>
-                  <Texto forte>{NOME_CENARIO[c.cenario]}{c.perfil_da_meta ? " - seu perfil" : ""} (retorno assumido {pct(c.retorno_nominal_aa)} a.a.; real {pct(c.taxa_real_aa)})</Texto>
-                  <Texto>{c.atingida_sem_aportes ? "O valor inicial ja basta para a meta." : `Aporte necessario: ${formatarBRL(c.aporte_mensal_necessario_centavos)} por mes`}</Texto>
+                  <Texto forte>{NOME_CENARIO[c.cenario]}{c.perfil_da_meta ? " · seu perfil" : ""} (retorno assumido {pct(c.retorno_nominal_aa)} a.a.; real {pct(c.taxa_real_aa)})</Texto>
+                  <Texto>{c.atingida_sem_aportes ? "O valor inicial já basta para a meta." : `Aporte necessário: ${formatarBRL(c.aporte_mensal_necessario_centavos)} por mes`}</Texto>
                   <Texto suave>Meta corrigida pelo IPCA ({pct(aberta.ipca_aa)}): {formatarBRL(c.valor_alvo_nominal_centavos)}. Total aportado: {formatarBRL(c.total_aportado_centavos)}. IR estimado: {formatarBRL(c.ir_estimado_centavos)}.</Texto>
-                  {c.prazo_com_aporte_meses !== undefined ? <Texto suave>{c.prazo_com_aporte_meses === null ? "Com a sua sobra media atual, a meta nao e atingida em 100 anos." : `Com a sua sobra media atual, a meta seria atingida em ${c.prazo_com_aporte_meses} meses.`}</Texto> : null}
+                  {c.prazo_com_aporte_meses !== undefined ? <Texto suave>{c.prazo_com_aporte_meses === null ? "Com a sua sobra média atual, a meta não é atingida em 100 anos." : `Com a sua sobra média atual, a meta seria atingida em ${c.prazo_com_aporte_meses} meses.`}</Texto> : null}
                 </View>
               ))}
               <Aviso tipo="info">{aberta.aviso}</Aviso>
@@ -133,9 +137,9 @@ export default function Metas() {
       ))}
 
       <Cartao titulo="Premissas de rentabilidade (percentual ao ano)">
-        {prem.some((p) => p.atualizada_em === null) ? <Aviso tipo="info">Valores ilustrativos do sistema, nao sao taxas atuais de mercado. Informe as suas premissas, com base em fontes oficiais.</Aviso> : null}
+        {prem.some((p) => p.atualizada_em === null) ? <Aviso tipo="info">Valores ilustrativos do sistema, não são taxas atuais de mercado. Informe as suas premissas, com base em fontes oficiais.</Aviso> : null}
         {prem.map((p) => (
-          <Campo key={p.chave} rotulo={p.chave === "ipca" ? "Inflacao (IPCA) assumida" : `Retorno nominal ${p.chave}`} value={edit[p.chave] ?? ""} onChangeText={(v) => setEdit({ ...edit, [p.chave]: v })} keyboardType="decimal-pad" />
+          <Campo key={p.chave} rotulo={p.chave === "ipca" ? "Inflação (IPCA) assumida" : `Retorno nominal ${p.chave}`} value={edit[p.chave] ?? ""} onChangeText={(v) => setEdit({ ...edit, [p.chave]: v })} keyboardType="decimal-pad" />
         ))}
         <Botao rotulo="Salvar premissas" onPress={salvarPremissas} secundario />
       </Cartao>
@@ -148,7 +152,7 @@ export default function Metas() {
             </Pressable>
           ))}
         </View>
-        <Texto suave>Perfil de risco desta meta (voce escolhe; define qual cenario fica destacado):</Texto>
+        <Texto suave>Perfil de risco desta meta (você escolhe; define qual cenário fica destacado):</Texto>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {PERFIS.map((x) => (
             <Pressable key={x.id} accessibilityRole="button" accessibilityState={{ selected: f.perfil === x.id }} onPress={() => setF({ ...f, perfil: x.id })} style={{ borderWidth: 1, borderColor: f.perfil === x.id ? t.primaria : t.borda, borderRadius: 16, minHeight: 44, paddingHorizontal: 12, justifyContent: "center" }}>
@@ -159,9 +163,9 @@ export default function Metas() {
         <Campo rotulo="Nome da meta" value={f.nome} onChangeText={(v) => setF({ ...f, nome: v })} />
         <Campo rotulo="Valor da meta em reais de hoje" value={f.valor} onChangeText={(v) => setF({ ...f, valor: v })} keyboardType="decimal-pad" placeholder="20000" />
         <Campo rotulo="Prazo em meses" value={f.prazo} onChangeText={(v) => setF({ ...f, prazo: v })} keyboardType="number-pad" placeholder="24" />
-        <Campo rotulo="Valor ja guardado (opcional)" value={f.inicial} onChangeText={(v) => setF({ ...f, inicial: v })} keyboardType="decimal-pad" placeholder="0" />
-        <Botao rotulo={editando !== null ? "Salvar alteracoes" : "Criar meta"} onPress={criar} />
-        {editando !== null ? <Botao rotulo="Cancelar edicao" onPress={() => { setEditando(null); setF(VAZIO); }} secundario /> : null}
+        <Campo rotulo="Valor já guardado (opcional)" value={f.inicial} onChangeText={(v) => setF({ ...f, inicial: v })} keyboardType="decimal-pad" placeholder="0" />
+        <Botao rotulo={editando !== null ? "Salvar alterações" : "Criar meta"} onPress={criar} />
+        {editando !== null ? <Botao rotulo="Cancelar edição" onPress={() => { setEditando(null); setF(VAZIO); }} secundario /> : null}
       </Cartao>
     </ScrollView>
   );

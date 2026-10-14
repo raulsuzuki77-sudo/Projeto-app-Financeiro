@@ -31,7 +31,7 @@ public class OcrNativoModule: Module {
     Name("OcrNativo")
 
     /// Reconhece o texto de uma imagem (JPEG, PNG, HEIC) ou PDF local. Tudo acontece no aparelho.
-    AsyncFunction("reconhecer") { (uri: String) throws -> [ObservacaoOcr] in
+    AsyncFunction("reconhecer") { (uri: String, senha: String?) throws -> [ObservacaoOcr] in
       guard let url = URL(string: uri), url.isFileURL else {
         throw OcrFalhaException("O arquivo precisa ser local.")
       }
@@ -39,7 +39,7 @@ public class OcrNativoModule: Module {
         throw OcrFalhaException("Nao foi possivel ler o arquivo.")
       }
       if url.pathExtension.lowercased() == "pdf" {
-        return try OcrNativoModule.reconhecerPdf(url)
+        return try OcrNativoModule.reconhecerPdf(url, senha: senha)
       }
       return try OcrNativoModule.reconhecerImagem(url)
     }
@@ -56,12 +56,18 @@ public class OcrNativoModule: Module {
 
   // MARK: - PDF
 
-  private static func reconhecerPdf(_ url: URL) throws -> [ObservacaoOcr] {
+  private static func reconhecerPdf(_ url: URL, senha: String?) throws -> [ObservacaoOcr] {
     guard let doc = PDFDocument(url: url) else {
       throw OcrFalhaException("PDF ilegivel.")
     }
     if doc.isLocked {
-      throw OcrFalhaException("PDF protegido por senha.")
+      // Os codigos PDF_PROTEGIDO e PDF_SENHA_INCORRETA sao lidos pelo lado JavaScript para pedir a senha ao usuario.
+      guard let senha = senha, !senha.isEmpty else {
+        throw OcrFalhaException("PDF_PROTEGIDO")
+      }
+      if !doc.unlock(withPassword: senha) {
+        throw OcrFalhaException("PDF_SENHA_INCORRETA")
+      }
     }
     if doc.pageCount > maxPaginas {
       throw OcrFalhaException("PDF com mais de \(maxPaginas) paginas.")

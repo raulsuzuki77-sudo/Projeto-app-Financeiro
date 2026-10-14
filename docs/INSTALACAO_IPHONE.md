@@ -71,7 +71,13 @@ Pelo que sei, o app instalado com Apple ID gratuito deixa de abrir após 7 dias.
 ## Parte 6. Se mudar o Bundle ID ou atualizar o projeto
 
 - Mudou o Bundle ID: rode de novo o script da Parte 2 com o novo identificador. **Atenção**: um Bundle ID diferente é outro aplicativo para o iOS, com banco de dados separado; exporte o backup antes e restaure no novo.
-- Baixou uma versão nova do código: `git pull`, depois rode o script de novo (ele reinstala as dependências e regenera o projeto) e faça Run no Xcode. **Atenção**: regenerar o projeto apaga as configurações feitas no Xcode. Depois de rodar o script, refaça na Parte 3 o passo 3 (escolher o Team) e o passo 6 (Build Configuration: Release). O Apple ID e o iPhone já cadastrados continuam valendo.
+- Baixou uma versão nova do código (atualização): exporte antes um backup cifrado (Mais opções > Backup e segurança). No Terminal: `cd Projeto-app-Financeiro`, `git checkout -- .` (descarta alterações locais, como o Bundle ID gravado), `git pull origin claude/financial-control-system-plan-fl4o1k`, `cd app`, e rode de novo `./scripts/preparar-mac.sh br.com.SEUNOME.controlefinanceiro` (mesmo Bundle ID de antes, para manter os dados). O script reinstala as dependências, regenera o projeto e tenta configurar o Release sozinho. **Atenção**: regenerar o projeto apaga as configurações feitas no Xcode: refaça o passo 3 da Parte 3 (escolher o Team) e confira o passo 6 (Release). Depois, Cmd+R. O Apple ID e o iPhone já cadastrados continuam valendo.
+
+## Parte 6-B. Ver o aplicativo sem o iPhone (iterar o layout)
+
+- Prévia no navegador (dados fictícios de demonstração): na pasta `app`, rode `npm run web` e abra o endereço indicado. Serve para avaliar layout e fluxo; não exercita OCR, Face ID, Keychain nem o menu Compartilhar.
+- Simulador do iPhone (já vem com o Xcode): `npx expo run:ios` na pasta `app` abre o app no simulador, com o código nativo real, exceto Face ID e câmera.
+- Receber PDF pelo menu Compartilhar: depois de instalar a versão nova, abra um PDF no app Arquivos, toque em Compartilhar e procure "Controle Financeiro" entre os aplicativos. Esse recurso não foi verificado em aparelho; se não aparecer, avise.
 
 ## Parte 7. Erros comuns e como pedir ajuda
 
