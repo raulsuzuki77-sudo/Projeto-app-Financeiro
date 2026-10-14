@@ -51,6 +51,8 @@ export default function LayoutRaiz() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="lancamento/[id]" options={{ title: "Editar lançamento" }} />
             <Stack.Screen name="importar" options={{ title: "Importar documento" }} />
+            <Stack.Screen name="eventos" options={{ title: "Viagens e eventos" }} />
+            <Stack.Screen name="evento/[id]" options={{ title: "Evento" }} />
             <Stack.Screen name="recorrentes" options={{ title: "Gastos recorrentes" }} />
             <Stack.Screen name="metas" options={{ title: "Metas e cenários" }} />
             <Stack.Screen name="cartoes" options={{ title: "Cartões" }} />

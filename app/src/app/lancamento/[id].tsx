@@ -5,10 +5,10 @@ import { rotuloCategoria } from "../../../../core/src/index";
 import { SeletorCategoria } from "../../components/seletor-categoria";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
-import { Aviso, Botao, Campo, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../../components/ui";
+import { Aviso, Botao, Campo, CampoValor, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../../components/ui";
 import { useDados } from "../../hooks/useDados";
 import { api } from "../../lib/api";
-import { dataBR, dataParaISO, formatarBRL, reaisParaCentavos } from "../../lib/format";
+import { dataBR, dataParaISO, formatarBRL, mascaraDeCentavos, reaisParaCentavos } from "../../lib/format";
 
 type Tipo = "despesa" | "receita" | "investimento" | "transferencia";
 type Forma = "pix" | "debito" | "credito" | "dinheiro" | "boleto" | "outro";
@@ -39,7 +39,7 @@ export default function EditarLancamento() {
   useEffect(() => {
     if (!l) return;
     setTipo(l.tipo as Tipo);
-    setValor((l.valor_centavos / 100).toFixed(2).replace(".", ","));
+    setValor(mascaraDeCentavos(l.valor_centavos));
     setDescricao(l.descricao);
     setData(dataBR(l.data_local));
     setHora(l.hora_local === null ? "" : String(l.hora_local));
@@ -88,7 +88,7 @@ export default function EditarLancamento() {
         {l.status === "pendente" ? <Aviso tipo="info">{l.motivo_revisao ?? "Este lançamento aguarda revisão. Ao salvar, ele é confirmado."}</Aviso> : null}
         <Cartao>
           <Segmentado rotulo="Tipo" valor={tipo} onChange={setTipo} opcoes={[{ id: "despesa", rotulo: "Saída" }, { id: "receita", rotulo: "Entrada" }, { id: "investimento", rotulo: "Invest." }, { id: "transferencia", rotulo: "Transf." }]} />
-          <Campo rotulo="Valor" prefixo="R$" value={valor} onChangeText={setValor} keyboardType="decimal-pad" />
+          <CampoValor rotulo="Valor" value={valor} onChangeText={setValor} />
           <Campo rotulo="Detalhamento" value={descricao} onChangeText={setDescricao} />
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 2 }}><Campo rotulo="Data (dd/mm/aaaa)" value={data} onChangeText={setData} keyboardType="numbers-and-punctuation" /></View>

@@ -2,7 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTema } from "../components/tema";
-import { Aviso, Botao, Campo, Cartao, Texto } from "../components/ui";
+import { Aviso, Botao, Campo, CampoValor, Cartao, Texto } from "../components/ui";
 import { useBotaoAtualizar } from "../hooks/useDados";
 import { api, type CenariosDaMeta, type Meta, type PremissaApi, type Reserva } from "../lib/api";
 import { formatarBRL, percentualParaFracao, reaisParaCentavos } from "../lib/format";
@@ -161,9 +161,9 @@ export default function Metas() {
           ))}
         </View>
         <Campo rotulo="Nome da meta" value={f.nome} onChangeText={(v) => setF({ ...f, nome: v })} />
-        <Campo rotulo="Valor da meta em reais de hoje" value={f.valor} onChangeText={(v) => setF({ ...f, valor: v })} keyboardType="decimal-pad" placeholder="20000" />
+        <CampoValor rotulo="Valor da meta em reais de hoje" value={f.valor} onChangeText={(v) => setF({ ...f, valor: v })} />
         <Campo rotulo="Prazo em meses" value={f.prazo} onChangeText={(v) => setF({ ...f, prazo: v })} keyboardType="number-pad" placeholder="24" />
-        <Campo rotulo="Valor já guardado (opcional)" value={f.inicial} onChangeText={(v) => setF({ ...f, inicial: v })} keyboardType="decimal-pad" placeholder="0" />
+        <CampoValor rotulo="Valor já guardado (opcional)" value={f.inicial} onChangeText={(v) => setF({ ...f, inicial: v })} />
         <Botao rotulo={editando !== null ? "Salvar alterações" : "Criar meta"} onPress={criar} />
         {editando !== null ? <Botao rotulo="Cancelar edição" onPress={() => { setEditando(null); setF(VAZIO); }} secundario /> : null}
       </Cartao>

@@ -24,7 +24,13 @@ function resumo(r: RelatorioImportacao): string {
 }
 
 /** Le o arquivo escolhido e importa. Devolve texto pronto para exibir. Erros de leitura viram excecao com mensagem clara. */
-export async function importarArquivo(arq: { uri: string; nome: string }, tipo: TipoImportacao, cartaoId: number | null, senhaPdf?: string | null): Promise<string> {
+export interface ResultadoImportacaoApp {
+  texto: string;
+  /** Primeira e última data dos lançamentos lidos; a tela usa para perguntar se houve viagem no período. */
+  periodo: { de: string; ate: string } | null;
+}
+
+export async function importarArquivo(arq: { uri: string; nome: string }, tipo: TipoImportacao, cartaoId: number | null, senhaPdf?: string | null): Promise<ResultadoImportacaoApp> {
   const db = obterBanco();
   const ext = extensao(arq.nome);
   const ctx = { usuario_id: USUARIO, cartao_id: cartaoId };
@@ -41,7 +47,7 @@ export async function importarArquivo(arq: { uri: string; nome: string }, tipo: 
     if (r.formato_csv === "nubank_cartao") extras.push("Formato reconhecido: fatura do cartão Nubank.");
     if (r.rejeitadas?.length) extras.push(`${r.rejeitadas.length} linha(s) recusada(s): ${r.rejeitadas.slice(0, 3).map((x) => `linha ${x.linha} (${x.motivo})`).join("; ")}.`);
     if (r.conciliacao) extras.push(r.conciliacao.fecha ? `Soma confere com o total da fatura (${formatarBRL(r.conciliacao.total_declarado_centavos)}).` : `ATENÇÃO: soma dos itens (${formatarBRL(r.conciliacao.soma_itens_centavos)}) difere do total (${formatarBRL(r.conciliacao.total_declarado_centavos)}); tudo foi para revisão.`);
-    return [resumo(r.relatorio), ...extras].join(" ");
+    return { texto: [resumo(r.relatorio), ...extras].join(" "), periodo: r.relatorio.periodo };
   }
 
   const linhas = await reconhecerTexto(arq.uri, senhaPdf);
@@ -51,10 +57,10 @@ export async function importarArquivo(arq: { uri: string; nome: string }, tipo: 
     if (!r.ok) throw new Error(`${r.erro}${r.nao_lidas.length ? ` (${r.nao_lidas.length} linha(s) não lidas)` : ""}`);
     const c = r.conciliacao;
     const conc = c ? (c.fecha ? `Soma confere com o total da fatura (${formatarBRL(c.total_declarado_centavos)}).` : `ATENÇÃO: a soma dos itens (${formatarBRL(c.soma_itens_centavos)}) difere do total declarado (${formatarBRL(c.total_declarado_centavos)}); todos os itens foram para revisão.`) : "Total da fatura não localizado para conferência.";
-    return `${resumo(r.relatorio)} ${conc}`;
+    return { texto: `${resumo(r.relatorio)} ${conc}`, periodo: r.relatorio.periodo };
   }
   const c = importarComprovante(db, linhas.map((l) => l.texto), id, ctx);
   if (!c.ok) throw new Error(c.erro);
   const d = c.dados_lidos;
-  return `Comprovante lido (${c.resultado}): ${d.estabelecimento}, ${formatarBRL(d.valor_centavos)}${d.data_local ? ` em ${d.data_local}` : ""}. Confira na aba Revisar.`;
+  return { texto: `Comprovante lido (${c.resultado}): ${d.estabelecimento}, ${formatarBRL(d.valor_centavos)}${d.data_local ? ` em ${d.data_local}` : ""}. Confira na aba Revisar.`, periodo: d.data_local ? { de: d.data_local, ate: d.data_local } : null };
 }

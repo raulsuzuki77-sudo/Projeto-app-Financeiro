@@ -50,6 +50,23 @@ export function urlServidorValida(url: string): { ok: true; url: string } | { ok
   return local ? { ok: true, url: u.origin } : { ok: false, motivo: "Fora da rede local, o servidor deve usar https para proteger seus dados financeiros." };
 }
 
+/**
+ * Máscara de valor em reais enquanto se digita: só os dígitos contam e os dois últimos são os centavos, então a vírgula
+ * e os pontos de milhar aparecem sozinhos ("1" -> "0,01"; "123456" -> "1.234,56"). Vazio continua vazio.
+ */
+export function mascararValor(texto: string): string {
+  const digitos = texto.replace(/\D/g, "").replace(/^0+/, "").slice(0, 12);
+  if (!digitos) return "";
+  const cheio = digitos.padStart(3, "0");
+  const reais = cheio.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reais},${cheio.slice(-2)}`;
+}
+
+/** Centavos -> texto já mascarado, para preencher um campo de valor ao editar. */
+export function mascaraDeCentavos(centavos: number): string {
+  return mascararValor(String(Math.max(0, Math.round(centavos))));
+}
+
 /** Converte "1.234,56", "1234,5" ou "1234" (reais) em centavos; null se invalido. */
 export function reaisParaCentavos(texto: string): number | null {
   const t = texto.trim().replace(/^R\$\s*/i, "");

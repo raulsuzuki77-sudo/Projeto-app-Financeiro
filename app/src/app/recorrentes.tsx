@@ -4,7 +4,7 @@ import { rotuloCategoria } from "../../../core/src/index";
 import { SeletorCategoria } from "../components/seletor-categoria";
 import { useTema } from "../components/tema";
 import { useToast } from "../components/toast";
-import { Aviso, Botao, Campo, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../components/ui";
+import { Aviso, Botao, Campo, CampoValor, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../components/ui";
 import { useBotaoAtualizar, useDados } from "../hooks/useDados";
 import { api } from "../lib/api";
 import { formatarBRL, mesAtual, reaisParaCentavos } from "../lib/format";
@@ -90,7 +90,7 @@ export default function Recorrentes() {
           <Segmentado rotulo="Tipo" valor={tipo} onChange={setTipo} opcoes={[{ id: "despesa", rotulo: "Saída" }, { id: "receita", rotulo: "Entrada" }, { id: "investimento", rotulo: "Investimento" }]} />
           <Campo rotulo="Detalhamento" value={descricao} onChangeText={setDescricao} placeholder="Ex.: aluguel, Netflix, salário" />
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <View style={{ flex: 2 }}><Campo rotulo="Valor mensal" prefixo="R$" value={valor} onChangeText={setValor} keyboardType="decimal-pad" placeholder="0,00" /></View>
+            <View style={{ flex: 2 }}><CampoValor rotulo="Valor mensal" value={valor} onChangeText={setValor} /></View>
             <View style={{ flex: 1 }}><Campo rotulo="Dia do mês" value={dia} onChangeText={setDia} keyboardType="number-pad" maxLength={2} placeholder="5" /></View>
           </View>
           <View style={{ gap: 8 }}>

@@ -86,3 +86,13 @@ export function naturezaPadraoDaCategoria(id: string): Natureza | null {
 export function classePadraoDaCategoria(id: string): ClasseId | null {
   return POR_ID.get(id)?.classe ?? null;
 }
+
+/** "Alimentação › Supermercado": o grupo e a categoria, para mostrar a hierarquia. Categorias personalizadas aparecem sem grupo. */
+export function rotuloCompleto(id: string): string {
+  const c = POR_ID.get(id);
+  return c ? `${c.grupo} › ${c.rotulo}` : rotuloCategoria(id);
+}
+
+export function grupoDaCategoria(id: string): Categoria["grupo"] {
+  return POR_ID.get(id)?.grupo ?? "Outros";
+}

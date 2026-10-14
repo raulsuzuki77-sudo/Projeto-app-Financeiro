@@ -1,14 +1,15 @@
 import {
-  alterarLancamento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
+  alterarLancamento, atualizarEvento, copiarOrcamento, coberturaDaRecorrencia, criarEvento, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento, detectarRecorrentes,
+  gerarRecorrenciasDetalhado, listarEventos, orcamentoVsMetas, painelOrcamento, removerEvento, removerOrcamento, sugerirOrcamentoPelaMedia, viagensSemEvento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
   criarRecorrencia, definirTitular, editarLancamento, excluirLancamento, gerarRecorrencias, lancarManual, lerPremissas, listarCartoes, listarLancamentos, listarMetas,
   listarRecorrencias, mapaCalor, obterLancamento, paraLocal, processarMensagem, removerCartao, removerMeta, removerRecorrencia, reservaDeEmergencia,
   reaplicarRegrasAosPendentes, restaurarLancamento, resumoMensal, salvarPremissa, sugerirCategorias,
-  type Cartao, type CenarioMeta, type EdicaoCompleta, type FiltroLancamentos, type Lancamento, type LancamentoManual, type Meta, type Natureza,
+  type Cartao, type CenarioMeta, type ClasseId, type NovoEvento, type PainelOrcamento, type RecorrenteDetectada, type EdicaoCompleta, type FiltroLancamentos, type Lancamento, type LancamentoManual, type Meta, type Natureza,
   type NovaRecorrencia, type Premissa, type Recorrencia, type ResumoMensal, type Status, type Sugestao,
 } from "../../../core/src/index";
 import { obterBanco } from "../data/banco";
 
-export type { Cartao, CenarioMeta, Lancamento, LancamentoManual, Meta, Recorrencia, ResumoMensal, Sugestao, EdicaoCompleta };
+export type { ClasseId, NovoEvento, PainelOrcamento, RecorrenteDetectada, Cartao, CenarioMeta, Lancamento, LancamentoManual, Meta, Recorrencia, ResumoMensal, Sugestao, EdicaoCompleta };
 export type PremissaApi = Premissa;
 export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
 export type Reserva = ReturnType<typeof reservaDeEmergencia>;
@@ -59,6 +60,31 @@ export const api = {
   removerRecorrencia: async (id: number) => removerRecorrencia(obterBanco(), USUARIO, id),
   /** Gera os lançamentos de recorrências que já venceram. Chamada ao abrir o app e ao atualizar. */
   gerarRecorrencias: async () => gerarRecorrencias(obterBanco(), USUARIO, hoje()),
+
+  gerarRecorrenciasDetalhado: async () => gerarRecorrenciasDetalhado(obterBanco(), USUARIO, hoje()),
+  /** Compromissos que se repetem mês a mês nos lançamentos, ainda cadastrados ou não. */
+  recorrentesDetectadas: async () => detectarRecorrentes(obterBanco(), USUARIO, hoje()),
+  /** Meses em que os lançamentos importados já contemplam a recorrência (contada uma só vez). */
+  coberturaRecorrencia: async (id: number) => coberturaDaRecorrencia(obterBanco(), USUARIO, id, hoje()),
+
+  eventos: async () => listarEventos(obterBanco(), USUARIO),
+  criarEvento: async (e: NovoEvento) => criarEvento(obterBanco(), USUARIO, e),
+  atualizarEvento: async (id: number, p: Partial<Omit<NovoEvento, "vincular">>) => atualizarEvento(obterBanco(), USUARIO, id, p),
+  removerEvento: async (id: number) => removerEvento(obterBanco(), USUARIO, id),
+  detalheEvento: async (id: number) => detalheEvento(obterBanco(), USUARIO, id),
+  /** Vincula (ou, com null, desvincula) um lançamento a um evento. */
+  definirEventoDoLancamento: async (lancamentoId: number, eventoId: number | null) => definirEventoDoLancamento(obterBanco(), USUARIO, lancamentoId, eventoId),
+  /** Gastos de viagem e hospedagem ainda sem evento: a tela pergunta o período da viagem. */
+  viagensSemEvento: async () => viagensSemEvento(obterBanco(), USUARIO),
+
+  orcamento: async (mes: string) => painelOrcamento(obterBanco(), USUARIO, mes),
+  /** `mes` = "*" vale para todos os meses sem valor próprio; `item` = categoria ou "__receita". */
+  definirOrcamento: async (mes: string, item: string, valorCentavos: number) => definirOrcamento(obterBanco(), USUARIO, mes, item, valorCentavos),
+  removerOrcamento: async (mes: string, item: string) => removerOrcamento(obterBanco(), USUARIO, mes, item),
+  copiarOrcamento: async (deMes: string, paraMes: string) => copiarOrcamento(obterBanco(), USUARIO, deMes, paraMes),
+  sugerirOrcamento: async (mes: string) => sugerirOrcamentoPelaMedia(obterBanco(), USUARIO, mes),
+  definirClasse: async (categoria: string, classe: ClasseId | null) => definirClasse(obterBanco(), USUARIO, categoria, classe),
+  orcamentoVsMetas: async (mes: string) => orcamentoVsMetas(obterBanco(), USUARIO, mes),
 
   premissas: async () => lerPremissas(obterBanco(), USUARIO),
   salvarPremissa: async (p: { chave: string; retorno_nominal_aa: number; ir_modo?: string; ir_aliquota?: number | null }) => {

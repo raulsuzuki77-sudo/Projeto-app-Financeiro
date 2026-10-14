@@ -49,12 +49,21 @@ export interface RelatorioImportacao {
   mesclados: number;
   ja_processados: number;
   pendentes: number;
+  /** Primeira e última data dos itens lidos (para perguntar, por exemplo, se houve viagem no período). */
+  periodo: { de: string; ate: string } | null;
   /** Itens que exigiram revisão por alerta de leitura (não por falta de classificação). */
   alertas: { descricao: string; data_local: string; motivo: string }[];
 }
 
 export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImportacao): RelatorioImportacao {
-  const rel: RelatorioImportacao = { lidos: itens.length, criados: 0, mesclados: 0, ja_processados: 0, pendentes: 0, alertas: [] };
+  const rel: RelatorioImportacao = { lidos: itens.length, criados: 0, mesclados: 0, ja_processados: 0, pendentes: 0, periodo: null, alertas: [] };
+  for (const it of itens) {
+    if (!rel.periodo) rel.periodo = { de: it.data_local, ate: it.data_local };
+    else {
+      if (it.data_local < rel.periodo.de) rel.periodo.de = it.data_local;
+      if (it.data_local > rel.periodo.ate) rel.periodo.ate = it.data_local;
+    }
+  }
   const contador = new Map<string, number>();
   // Itens do mesmo arquivo nao se mesclam entre si (duas compras iguais no mesmo dia sao duas compras).
   const doLote = new Set<number>();

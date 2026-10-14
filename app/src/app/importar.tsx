@@ -36,6 +36,8 @@ export default function Importar() {
   const [pedirSenha, setPedirSenha] = useState<null | "pedida" | "incorreta">(null);
   const [ocupado, setOcupado] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
+  /** Período (mínimo e máximo) dos lançamentos lidos nesta importação. */
+  const [periodo, setPeriodo] = useState<{ de: string; ate: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,14 +94,21 @@ export default function Importar() {
     setOcupado(true);
     setErro(null);
     setResultado(null);
+    setPeriodo(null);
+    let de: string | null = null;
+    let ate: string | null = null;
     const feitos: string[] = [];
     const falhas: string[] = [];
     const varios = arquivos.length > 1;
     try {
       for (const a of arquivos) {
         try {
-          const msg = await importarArquivo(a, tipo, cartaoId, senha || null);
+          const { texto: msg, periodo: p } = await importarArquivo(a, tipo, cartaoId, senha || null);
           feitos.push(varios ? `${a.nome}: ${msg}` : msg);
+          if (p) {
+            if (!de || p.de < de) de = p.de;
+            if (!ate || p.ate > ate) ate = p.ate;
+          }
           if (cartaoId !== null && /\.pdf$/i.test(a.nome)) {
             if (lembrar && senha) await salvarSenhaPdf(cartaoId, senha);
             if (!lembrar) await apagarSenhaPdf(cartaoId);
@@ -115,6 +124,7 @@ export default function Importar() {
         }
       }
       setPedirSenha(null);
+      if (de && ate) setPeriodo({ de, ate });
       if (feitos.length) setResultado(feitos.join("\n\n"));
       if (falhas.length) setErro(falhas.join("\n"));
     } finally {

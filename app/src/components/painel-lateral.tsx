@@ -12,6 +12,7 @@ export const usePainelLateral = () => useContext(PainelCtx);
 
 const ITENS: { rota: string; rotulo: string; descricao: string; icone: NomeIcone }[] = [
   { rota: "/importar", rotulo: "Importar documento", descricao: "Fatura, extrato ou comprovante", icone: "importar" },
+  { rota: "/eventos", rotulo: "Viagens e eventos", descricao: "Férias, viagens a serviço, gastos do período", icone: "calendario" },
   { rota: "/recorrentes", rotulo: "Gastos recorrentes", descricao: "Aluguel, assinaturas, salário", icone: "recorrente" },
   { rota: "/metas", rotulo: "Metas e cenários", descricao: "Reserva, investimentos, perfil de risco", icone: "meta" },
   { rota: "/cartoes", rotulo: "Cartões", descricao: "Apelidos e senha dos PDFs", icone: "cartao" },

@@ -7,7 +7,7 @@ import { Pizza } from "../../components/pizza";
 import { SeletorCategoria } from "../../components/seletor-categoria";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
-import { Aviso, Botao, Campo, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../../components/ui";
+import { Aviso, Botao, Campo, CampoValor, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../../components/ui";
 import { useBotaoAtualizar, useDados } from "../../hooks/useDados";
 import { api, type Cartao as CartaoLocal } from "../../lib/api";
 import { dataBR, dataParaISO, formatarBRL, mesAtual, nomeMes, reaisParaCentavos } from "../../lib/format";
@@ -168,7 +168,7 @@ export default function Inicio() {
             }}
             opcoes={[{ id: "despesa", rotulo: "Saída" }, { id: "receita", rotulo: "Entrada" }, { id: "investimento", rotulo: "Investimento" }]}
           />
-          <Campo rotulo="Valor" prefixo="R$" value={valor} onChangeText={setValor} keyboardType="decimal-pad" placeholder="0,00" />
+          <CampoValor rotulo="Valor" value={valor} onChangeText={setValor} />
           <Campo rotulo="Detalhamento" value={descricao} onChangeText={setDescricao} placeholder={tipo === "receita" ? "Ex.: salário, reembolso" : "Ex.: almoço, mercado, farmácia"} autoCapitalize="sentences" />
 
           <View style={{ gap: 8 }}>

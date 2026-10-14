@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { mascararValor } from "../lib/format";
 import { Icone, type NomeIcone } from "./icone";
 import { useTema } from "./tema";
 
@@ -64,6 +65,12 @@ export function Campo(props: TextInputProps & { rotulo: string; prefixo?: string
       </View>
     </View>
   );
+}
+
+/** Campo de valor em reais: a vírgula e os pontos de milhar entram sozinhos conforme se digitam os números. */
+export function CampoValor(props: Omit<TextInputProps, "keyboardType" | "onChangeText"> & { rotulo: string; prefixo?: string; onChangeText: (mascarado: string) => void }) {
+  const { onChangeText, value, ...resto } = props;
+  return <Campo prefixo="R$" placeholder="0,00" {...resto} value={value} keyboardType="number-pad" onChangeText={(v) => onChangeText(mascararValor(v))} />;
 }
 
 export function Texto({ children, suave, forte, cor, pequeno }: { children: ReactNode; suave?: boolean; forte?: boolean; cor?: string; pequeno?: boolean }) {

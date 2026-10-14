@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatarBRL, nomeMes, dataBR, dataParaISO, percentualParaFracao, intensidade, mesAtual, mudarMes, reaisParaCentavos, ultimoDia, urlServidorValida } from "./format.ts";
+import { formatarBRL, nomeMes, dataBR, dataParaISO, percentualParaFracao, intensidade, mesAtual, mudarMes, reaisParaCentavos, ultimoDia, mascararValor, mascaraDeCentavos, urlServidorValida } from "./format.ts";
 
 test("mes: navegacao e ultimo dia", () => {
   assert.equal(mudarMes("2026-01", -1), "2025-12");
@@ -51,4 +51,21 @@ test("moeda e nome do mes sem Intl", () => {
   assert.equal(formatarBRL(5), "R$ 0,05");
   assert.equal(formatarBRL(-100000), "-R$ 1.000,00");
   assert.equal(nomeMes("2026-03"), "março de 2026");
+});
+
+test("mascara de valor: virgula e pontos aparecem sozinhos", () => {
+  assert.equal(mascararValor(""), "");
+  assert.equal(mascararValor("0"), "");
+  assert.equal(mascararValor("1"), "0,01");
+  assert.equal(mascararValor("12"), "0,12");
+  assert.equal(mascararValor("123"), "1,23");
+  assert.equal(mascararValor("4290"), "42,90");
+  assert.equal(mascararValor("123456"), "1.234,56");
+  assert.equal(mascararValor("12345678"), "123.456,78");
+  assert.equal(mascararValor("1.234,56"), "1.234,56", "reaplicar a mascara nao muda o texto");
+  assert.equal(mascararValor("R$ 42,90"), "42,90");
+  assert.equal(mascararValor("00042,9"), "4,29");
+  assert.equal(mascaraDeCentavos(4290), "42,90");
+  assert.equal(mascaraDeCentavos(5), "0,05");
+  assert.equal(reaisParaCentavos(mascararValor("123456")), 123456, "o texto mascarado volta a centavos");
 });

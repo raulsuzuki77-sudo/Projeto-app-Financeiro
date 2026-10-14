@@ -28,6 +28,7 @@ export default function LayoutAbas() {
       <Tabs.Screen name="index" options={{ title: "Início", tabBarIcon: icone("inicio") }} />
       <Tabs.Screen name="extrato" options={{ title: "Extrato", tabBarIcon: icone("extrato") }} />
       <Tabs.Screen name="revisar" options={{ title: "Revisar", tabBarIcon: icone("revisar") }} />
+      <Tabs.Screen name="orcamento" options={{ title: "Orçamento", tabBarIcon: icone("orcamento") }} />
       <Tabs.Screen name="painel" options={{ title: "Painel", tabBarIcon: icone("painel") }} />
     </Tabs>
   );

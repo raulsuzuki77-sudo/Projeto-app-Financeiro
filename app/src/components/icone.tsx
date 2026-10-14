@@ -19,6 +19,8 @@ const CAMINHOS = {
   importar: "M12 3v12 M7 10l5 5 5-5 M4 20h16",
   seguranca: "M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3",
   buscar: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M21 21l-5-5",
+  calendario: "M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4",
+  orcamento: "M3 8h18v11H3z M3 8l3-4h12l3 4 M16 13.5h2",
   camera: "M4 8h3l2-3h6l2 3h3v11H4z M12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z",
 } as const;
 
