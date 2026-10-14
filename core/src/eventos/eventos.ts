@@ -1,4 +1,6 @@
+import { chaveEstabelecimento } from "../classification/classificador";
 import type { Db } from "../db/tipos";
+import { detectarRecorrentes } from "../recorrencias/recorrencias";
 import { dataValida } from "../parsing/tempo";
 
 export const TIPOS_EVENTO = ["ferias", "viagem_servico", "outro"] as const;
@@ -22,6 +24,19 @@ export interface NovoEvento {
   /** Vincula ao evento os gastos já existentes no período (padrão). Os gastos importados depois também são vinculados. */
   vincular?: boolean;
 }
+
+/**
+ * Categorias de gasto que, dentro do período, são presumidas do evento (alta probabilidade): hospedagem e passagens, comer e beber
+ * fora, passeios e deslocamentos. Mercado, compras, saúde e o que não está nesta lista NÃO entram sozinhos: aparecem numa lista para
+ * o usuário conferir. Contas da casa, receitas, assinaturas, parcelas, aportes e transferências nunca são sugeridos.
+ */
+export const CATEGORIAS_DE_VIAGEM = ["viagem", "alimentacao_restaurante", "alimentacao_delivery", "lazer_bar", "bebidas", "lazer_passeios", "lazer_jogos", "transporte_aplicativo_pedagio"] as const;
+
+/** Gastos da rotina da casa e compromissos que se repetem: nunca sugeridos para um evento (salario e receitas nem entram: so despesas). */
+const CATEGORIAS_DA_CASA = ["moradia", "moradia_contas", "moradia_manutencao", "saude_plano", "seguros", "contribuicoes", "impostos_taxas", "financeiro_custos", "clube_pontos", "conhecimento_ia", "educacao", "servicos_domesticos", "saude_academia"];
+
+const MARCAS_VIAGEM = CATEGORIAS_DE_VIAGEM.map(() => "?").join(",");
+const MARCAS_CASA = CATEGORIAS_DA_CASA.map(() => "?").join(",");
 
 /**
  * Naturezas que NÃO são presumidas do evento: contas que se repetem todo mês (aluguel, assinaturas), parcelas de compras antigas,
@@ -52,18 +67,18 @@ export function eventoDaData(db: Db, usuarioId: string, dataLocal: string): numb
   return r?.id ?? null;
 }
 
-/** O lançamento (tipo e natureza finais) pode ser presumido de um evento? */
-export function elegivelParaEvento(tipo: string, natureza: string): boolean {
-  return tipo === "despesa" && !NATUREZAS_FORA.includes(natureza);
+/** O lançamento (tipo, natureza e categoria finais) pode ser presumido de um evento pelo período? */
+export function elegivelParaEvento(tipo: string, natureza: string, categoria: string): boolean {
+  return tipo === "despesa" && !NATUREZAS_FORA.includes(natureza) && (CATEGORIAS_DE_VIAGEM as readonly string[]).includes(categoria);
 }
 
-/** Vincula ao evento os gastos elegíveis do período que ainda não têm evento. Devolve quantos foram vinculados. */
+/** Vincula ao evento os gastos de alta probabilidade do período que ainda não têm evento. Devolve quantos foram vinculados. */
 export function vincularPeriodo(db: Db, usuarioId: string, eventoId: number): number {
   const e = db.prepare("SELECT data_inicio, data_fim FROM evento WHERE id = ? AND usuario_id = ?").get(eventoId, usuarioId) as { data_inicio: string; data_fim: string } | undefined;
   if (!e) throw new Error("Evento não encontrado.");
   return db
-    .prepare(`UPDATE lancamento SET evento_id = ? WHERE usuario_id = ? AND evento_id IS NULL AND tipo = 'despesa' AND status != 'cancelado' AND data_local BETWEEN ? AND ? AND natureza NOT IN (${MARCAS})`)
-    .run(eventoId, usuarioId, e.data_inicio, e.data_fim, ...NATUREZAS_FORA).changes;
+    .prepare(`UPDATE lancamento SET evento_id = ? WHERE usuario_id = ? AND evento_id IS NULL AND tipo = 'despesa' AND status != 'cancelado' AND data_local BETWEEN ? AND ? AND natureza NOT IN (${MARCAS}) AND categoria IN (${MARCAS_VIAGEM})`)
+    .run(eventoId, usuarioId, e.data_inicio, e.data_fim, ...NATUREZAS_FORA, ...CATEGORIAS_DE_VIAGEM).changes;
 }
 
 export function criarEvento(db: Db, usuarioId: string, e: NovoEvento): { id: number; vinculados: number } {
@@ -144,3 +159,74 @@ export function nomeSugeridoDoEvento(tipo: TipoEvento, inicio: string): string {
   return `${ROTULO_TIPO_EVENTO[tipo]} de ${mes} de ${inicio.slice(0, 4)}`;
 }
 
+
+
+export interface GastoCandidato {
+  id: number;
+  descricao: string;
+  data_local: string;
+  categoria: string;
+  valor_centavos: number;
+  /** Dias de distância até o período do evento (0 = dentro do período). */
+  distancia_dias: number;
+  /** Já pertence a outro evento. */
+  evento_id: number | null;
+}
+
+const diasEntre = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);
+
+/**
+ * Gastos do período que NÃO foram vinculados sozinhos (categorias de mercado, compras, saúde etc.) e não são da rotina da casa
+ * nem de séries recorrentes: o usuário confere e inclui os que forem do evento. Entradas, contas da casa, assinaturas e parcelas não aparecem.
+ */
+export function sugestoesDoPeriodo(db: Db, usuarioId: string, eventoId: number): GastoCandidato[] {
+  const e = db.prepare("SELECT data_inicio, data_fim FROM evento WHERE id = ? AND usuario_id = ?").get(eventoId, usuarioId) as { data_inicio: string; data_fim: string } | undefined;
+  if (!e) throw new Error("Evento não encontrado.");
+  const recorrentes = new Set(detectarRecorrentes(db, usuarioId, e.data_fim).map((r) => `${r.tipo}|${r.chave}`));
+  const rows = db
+    .prepare(
+      `SELECT id, descricao, estabelecimento_norm, data_local, categoria, valor_centavos, evento_id FROM lancamento
+       WHERE usuario_id = ? AND tipo = 'despesa' AND status != 'cancelado' AND evento_id IS NULL AND data_local BETWEEN ? AND ?
+         AND natureza NOT IN (${MARCAS}) AND categoria NOT IN (${MARCAS_VIAGEM}) AND categoria NOT IN (${MARCAS_CASA}) AND forma_pagamento IS NOT 'boleto'
+       ORDER BY valor_centavos DESC`,
+    )
+    .all(usuarioId, e.data_inicio, e.data_fim, ...NATUREZAS_FORA, ...CATEGORIAS_DE_VIAGEM, ...CATEGORIAS_DA_CASA) as (GastoCandidato & { estabelecimento_norm: string })[];
+  return rows
+    .filter((r) => !recorrentes.has(`despesa|${chaveEstabelecimento(r.estabelecimento_norm)}`))
+    .map(({ estabelecimento_norm: _e, ...r }) => ({ ...r, distancia_dias: 0 }));
+}
+
+/**
+ * Gastos que o usuário pode vincular a mão ao evento, em QUALQUER data (reserva de hotel feita meses antes, passagem comprada
+ * com antecedência). Primeiro os de viagem ainda sem evento, depois os mais próximos do período; aceita busca por descrição.
+ */
+export function candidatosParaEvento(db: Db, usuarioId: string, eventoId: number, opcoes: { busca?: string; limite?: number } = {}): GastoCandidato[] {
+  const e = db.prepare("SELECT data_inicio, data_fim FROM evento WHERE id = ? AND usuario_id = ?").get(eventoId, usuarioId) as { data_inicio: string; data_fim: string } | undefined;
+  if (!e) throw new Error("Evento não encontrado.");
+  const busca = opcoes.busca?.trim() ? `%${opcoes.busca.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()}%` : null;
+  const rows = db
+    .prepare(
+      `SELECT id, descricao, data_local, categoria, valor_centavos, evento_id FROM lancamento
+       WHERE usuario_id = ? AND tipo = 'despesa' AND status != 'cancelado' AND (evento_id IS NULL OR evento_id != ?)
+         AND natureza NOT IN ('investimento','transferencia','estorno') ${busca ? "AND estabelecimento_norm LIKE ?" : ""}
+       ORDER BY data_local DESC LIMIT 2000`,
+    )
+    .all(...(busca ? [usuarioId, eventoId, busca] : [usuarioId, eventoId])) as Omit<GastoCandidato, "distancia_dias">[];
+  const dist = (d: string) => (d < e.data_inicio ? diasEntre(e.data_inicio, d) : d > e.data_fim ? diasEntre(d, e.data_fim) : 0);
+  const peso = (r: Omit<GastoCandidato, "distancia_dias">) => (r.categoria === "viagem" && r.evento_id === null ? 0 : 1);
+  return rows
+    .map((r) => ({ ...r, distancia_dias: dist(r.data_local) }))
+    .sort((a, b) => peso(a) - peso(b) || a.distancia_dias - b.distancia_dias || b.valor_centavos - a.valor_centavos)
+    .slice(0, Math.min(Math.max(opcoes.limite ?? 60, 1), 200));
+}
+
+/** Vincula vários lançamentos ao evento, em qualquer data. Devolve quantos foram alterados. */
+export function vincularLancamentos(db: Db, usuarioId: string, eventoId: number, ids: number[]): number {
+  if (!db.prepare("SELECT 1 FROM evento WHERE id = ? AND usuario_id = ?").get(eventoId, usuarioId)) throw new Error("Evento não encontrado.");
+  let n = 0;
+  const tx = db.transaction(() => {
+    for (const id of ids) n += db.prepare("UPDATE lancamento SET evento_id = ?, atualizado_em = ? WHERE id = ? AND usuario_id = ? AND tipo = 'despesa'").run(eventoId, new Date().toISOString(), id, usuarioId).changes;
+  });
+  tx();
+  return n;
+}

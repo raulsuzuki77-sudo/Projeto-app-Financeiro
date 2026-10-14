@@ -4,7 +4,7 @@ import { abrirBancoTeste } from "./helpers";
 import {
   classificar, classeDaCategoria, coberturaDaRecorrencia, copiarOrcamento, criarEvento, criarMeta, criarRecorrencia, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento,
   atualizarEvento, detectarRecorrentes, coberturaPrevia, exportarDados, gerarRecorrenciasDetalhado, importarTexto, interpretarConta, lancarManual, listarEventos, listarLancamentos, orcamentoVsMetas, painelOrcamento,
-  registrarLancamento, removerEvento, restaurarDados, sugerirOrcamentoPelaMedia, viagensSemEvento, ITEM_RECEITA, chaveEstabelecimento, definirTitular, resumoMensal,
+  registrarLancamento, removerEvento, restaurarDados, sugerirOrcamentoPelaMedia, viagensSemEvento, ignorarRecorrente, listarRecorrentesIgnoradas, restaurarRecorrenteIgnorada, sugestoesDoPeriodo, candidatosParaEvento, vincularLancamentos, ITEM_RECEITA, chaveEstabelecimento, definirTitular, resumoMensal,
 } from "../src/index";
 import type { Db } from "../src/db/tipos";
 
@@ -225,4 +225,39 @@ test("renomear o evento nao religa gasto removido a mao; ampliar o periodo vincu
   assert.equal(detalheEvento(db, U, id).total_centavos, 0);
   gasto(db, "2026-09-05", 2000, "Jantar", { categoria: "alimentacao_restaurante" });
   assert.equal(atualizarEvento(db, U, id, { data_fim: "2026-09-06" }).vinculados, 2);
+});
+
+test("evento que atravessa o virar do mes: so o que e de viagem entra sozinho; o resto vai para conferencia; vinculo manual em qualquer data", () => {
+  const db = abrirBancoTeste();
+  gasto(db, "2026-08-02", 200000, "Reserva Hotel Mar", { categoria: "viagem" }); // compra antecipada, meses antes
+  gasto(db, "2026-08-30", 8000, "Restaurante Sol", { categoria: "alimentacao_restaurante" });
+  gasto(db, "2026-08-31", 1000000, "Salario", { categoria: "receita_trabalho", tipo: "receita" });
+  gasto(db, "2026-08-31", 230000, "Aluguel", { categoria: "moradia" });
+  gasto(db, "2026-09-01", 68000, "Boleto: CONDOMINIO DO RESIDENCIAL", { categoria: "moradia" });
+  gasto(db, "2026-09-01", 12000, "Mercado Central", { categoria: "alimentacao_supermercado" });
+  gasto(db, "2026-09-02", 5000, "Farmacia Boa", { categoria: "saude" });
+  gasto(db, "2026-09-02", 4500, "Bar do Porto", { categoria: "lazer_bar" });
+  const { id, vinculados } = criarEvento(db, U, { nome: "Viagem de servico", tipo: "viagem_servico", data_inicio: "2026-08-30", data_fim: "2026-09-02" });
+  assert.equal(vinculados, 2, "so o restaurante e o bar (comer e beber fora)");
+  const sug = sugestoesDoPeriodo(db, U, id).map((g) => g.descricao).sort();
+  assert.deepEqual(sug, ["Farmacia Boa", "Mercado Central"], "mercado e farmacia para conferir; aluguel, condominio e salario nunca");
+  // o hotel foi reservado em 02/08: fora do periodo, mas pode ser vinculado a mao
+  const cand = candidatosParaEvento(db, U, id);
+  assert.equal(cand[0]!.descricao, "Reserva Hotel Mar", "viagem sem evento vem primeiro");
+  assert.ok(cand[0]!.distancia_dias > 20);
+  assert.equal(candidatosParaEvento(db, U, id, { busca: "hotel" }).length, 1);
+  assert.equal(vincularLancamentos(db, U, id, [cand[0]!.id]), 1);
+  assert.equal(detalheEvento(db, U, id).total_centavos, 200000 + 8000 + 4500);
+  assert.ok(!candidatosParaEvento(db, U, id).some((c) => c.descricao === "Reserva Hotel Mar"), "ja vinculado nao aparece de novo");
+});
+
+test("recusar sugestao de recorrente: deixa de ser detectada e pode ser restaurada", () => {
+  const db = abrirBancoTeste();
+  for (const m of ["2026-07", "2026-08"]) gasto(db, `${m}-10`, 12990, "Clube Livelo*Clube Liv", { categoria: "clube_pontos" });
+  const d = detectarRecorrentes(db, U, "2026-10-14").find((x) => x.chave.includes("livelo"))!;
+  ignorarRecorrente(db, U, d.tipo, d.chave, d.descricao);
+  assert.ok(!detectarRecorrentes(db, U, "2026-10-14").some((x) => x.chave.includes("livelo")));
+  assert.equal(listarRecorrentesIgnoradas(db, U).length, 1);
+  restaurarRecorrenteIgnorada(db, U, d.tipo, d.chave);
+  assert.ok(detectarRecorrentes(db, U, "2026-10-14").some((x) => x.chave.includes("livelo")));
 });

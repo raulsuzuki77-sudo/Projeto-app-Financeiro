@@ -1,10 +1,10 @@
 import type { Db } from "../db/tipos";
 import { sha256Hex } from "../util/sha256";
 import { FORMAS_PAGAMENTO, LIMIAR_CONFIANCA, NATUREZAS, TIPOS, type FormaPagamento, type Lancamento, type NovoLancamento, type Natureza, type Status, type Tipo } from "../domain/types";
-import { aprenderRegra, chaveEstabelecimento, classificar, naturezaPara, tipoAposReclassificar, tipoCoerente, type Classificacao } from "../classification/classificador";
+import { aprenderRegra, chaveEstabelecimento, classificar, naturezaPara, tipoENaturezaAposReclassificar, tipoCoerente, type Classificacao } from "../classification/classificador";
 import { naturezaPadraoDaCategoria } from "../classification/categorias";
 import { normalizar } from "../parsing/text";
-import { dataValida, paraInstanteUTC, somarDias } from "../parsing/tempo";
+import { dataValida, paraInstanteUTC, somarDias, somarMeses } from "../parsing/tempo";
 import { elegivelParaEvento, eventoDaData } from "../eventos/eventos";
 import { mesmoCompromisso } from "../recorrencias/casamento";
 
@@ -84,6 +84,26 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
       return { resultado: "mesclado", lancamento: obterLancamento(db, igual.id)! };
     }
 
+    // Parcela futura projetada (ver `projetarParcelas`): quando a fatura traz a parcela, ela vira a parcela real do mes, uma so vez.
+    if (n.origem !== "parcela_prevista" && n.parcela_atual && n.parcela_total) {
+      const projetadas = (db
+        .prepare(
+          `SELECT * FROM lancamento l WHERE l.usuario_id = ? AND l.tipo = ? AND l.status != 'cancelado' AND l.parcela_atual = ? AND l.parcela_total = ?
+             AND EXISTS (SELECT 1 FROM lancamento_origem o WHERE o.lancamento_id = l.id AND o.origem = 'parcela_prevista')
+             AND NOT EXISTS (SELECT 1 FROM lancamento_origem o2 WHERE o2.lancamento_id = l.id AND o2.origem != 'parcela_prevista')`,
+        )
+        .all(n.usuario_id, n.tipo, n.parcela_atual, n.parcela_total) as Lancamento[]).filter((c) => !ign?.has(c.id));
+      const prevista = projetadas.find((c) => chaveEstabelecimento(c.estabelecimento_norm) === chaveEstabelecimento(descNorm) && chaveEstabelecimento(descNorm) !== "" && mesmoValor(c.valor_centavos, n.valor_centavos));
+      if (prevista) {
+        gravarOrigem(prevista.id);
+        db.prepare("UPDATE lancamento SET valor_centavos = ?, data_local = ?, ocorrido_em = ?, hash_dedup = ?, atualizado_em = ? WHERE id = ?").run(
+          n.valor_centavos, n.data_local, paraInstanteUTC(n.data_local, n.hora_local ?? null),
+          hashDe(n.usuario_id, prevista.tipo, n.valor_centavos, n.data_local, prevista.cartao_id ?? prevista.conta_id ?? 0, prevista.estabelecimento_norm, prevista.parcela_atual ?? 0), agora, prevista.id,
+        );
+        return { resultado: "mesclado", lancamento: obterLancamento(db, prevista.id)! };
+      }
+    }
+
     // Compromisso previsto por recorrencia (ainda sem origem real): o lancamento real o substitui, contando uma unica vez.
     if (n.origem !== "recorrente") {
       const previstos = (db
@@ -112,7 +132,8 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
            AND data_local BETWEEN ? AND ?`,
       )
       .all(n.usuario_id, n.tipo, n.valor_centavos, somarDias(n.data_local, -3), somarDias(n.data_local, 3)) as Lancamento[]).filter((c) => !ign?.has(c.id));
-    const parecido = candidatos.find((c) => similaridade(c.estabelecimento_norm, descNorm) >= 0.5);
+    // Parcelas diferentes da mesma compra (2/6 e 3/6) sao lancamentos distintos, mesmo com valor e descricao iguais.
+    const parecido = candidatos.find((c) => (c.parcela_atual ?? 0) === (n.parcela_atual ?? 0) && similaridade(c.estabelecimento_norm, descNorm) >= 0.5);
     if (parecido) {
       gravarOrigem(parecido.id);
       return { resultado: "mesclado", lancamento: parecido };
@@ -140,13 +161,45 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
         n.precisao_horario, status, cls.confianca, hash, candidatos[0]?.id ?? null,
         status === "pendente" ? motivoRevisao(n, cls.confianca, candidatos.length > 0) : null,
         // Gasto dentro do periodo de um evento (viagem, ferias): vinculado desde a importacao
-        elegivelParaEvento(tipoFinal, natureza) ? eventoDaData(db, n.usuario_id, n.data_local) : null, agora, agora,
+        elegivelParaEvento(tipoFinal, natureza, cls.categoria) ? eventoDaData(db, n.usuario_id, n.data_local) : null, agora, agora,
       );
     const id = Number(info.lastInsertRowid);
     gravarOrigem(id);
     return { resultado: "criado", lancamento: obterLancamento(db, id)! };
   });
-  return tx();
+  const r = tx();
+  if (r.resultado === "criado" && n.origem !== "parcela_prevista" && n.parcela_atual && n.parcela_total && n.parcela_atual < n.parcela_total) projetarParcelas(db, r.lancamento, n);
+  return r;
+}
+
+const mesmoValor = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.max(a, b) * 0.01);
+
+/**
+ * Fluxo de caixa de compra parcelada: ao registrar a parcela k de n, projeta as parcelas k+1 a n nos meses seguintes (previstas),
+ * com a mesma categoria. Cada mes entra com o valor que de fato sai do bolso, em vez de lancar a compra inteira em um unico mes.
+ * Quando a fatura do mes seguinte trouxer a parcela, ela substitui a projecao (ver `registrarLancamento`). Idempotente.
+ */
+function projetarParcelas(db: Db, base: Lancamento, n: NovoLancamento): void {
+  const k = base.parcela_atual!;
+  const total = base.parcela_total!;
+  const serie = n.valores_parcelas ? `L${base.id}` : sha256Hex([base.usuario_id, chaveEstabelecimento(base.estabelecimento_norm), total, base.cartao_id ?? base.conta_id ?? 0, base.valor_centavos].join("|")).slice(0, 16);
+  for (let j = k + 1; j <= total; j++) {
+    const referencia = `parc:${serie}:${j}`;
+    if (db.prepare("SELECT 1 FROM lancamento_origem WHERE origem = 'parcela_prevista' AND referencia = ?").get(referencia)) continue;
+    // ja existe a parcela real (fatura importada fora de ordem)?
+    const real = (db.prepare("SELECT estabelecimento_norm, valor_centavos FROM lancamento WHERE usuario_id = ? AND status != 'cancelado' AND parcela_atual = ? AND parcela_total = ?").all(base.usuario_id, j, total) as { estabelecimento_norm: string; valor_centavos: number }[]).some((x) => chaveEstabelecimento(x.estabelecimento_norm) === chaveEstabelecimento(base.estabelecimento_norm) && mesmoValor(x.valor_centavos, base.valor_centavos));
+    if (real) continue;
+    const r = registrarLancamento(db, {
+      usuario_id: base.usuario_id, tipo: base.tipo, valor_centavos: n.valores_parcelas?.[j - 1] ?? base.valor_centavos, descricao: base.descricao,
+      forma_pagamento: base.forma_pagamento, cartao_id: base.cartao_id, conta_id: base.conta_id, parcela_atual: j, parcela_total: total,
+      data_local: somarMeses(base.data_local, j - k), hora_local: null, precisao_horario: "desconhecido", origem: "parcela_prevista", referencia,
+      categoria: base.categoria, natureza: base.natureza,
+    });
+    if (r.resultado !== "criado") continue;
+    // A projecao nao e prova de classificacao do usuario; se a primeira parcela ainda esta pendente, as demais acompanham (e saem da lista junto com ela).
+    if (base.status === "pendente") db.prepare("UPDATE lancamento SET status = 'pendente', confianca = 0, motivo_revisao = 'parcela futura prevista: classifique a primeira parcela' WHERE id = ?").run(r.lancamento.id);
+    else db.prepare("UPDATE lancamento SET confianca = 0.85 WHERE id = ?").run(r.lancamento.id);
+  }
 }
 
 export interface Alteracao {
@@ -176,8 +229,12 @@ export function alterarLancamento(db: Db, id: number, usuarioId: string, altOrig
     if (alt.status === "confirmado") db.prepare("UPDATE lancamento SET motivo_revisao = NULL WHERE id = ?").run(id);
     if (alt.categoria || alt.natureza) {
       const catFinal = alt.categoria ?? atual.categoria;
-      const natFinal = alt.natureza ?? atual.natureza;
-      const tipoNovo = natFinal === "estorno" ? atual.tipo : tipoAposReclassificar(atual.tipo, catFinal, natFinal);
+      const ajust = tipoENaturezaAposReclassificar(atual.tipo, catFinal, alt.natureza ?? atual.natureza);
+      const natFinal = ajust.natureza;
+      const tipoNovo = ajust.tipo;
+      if (natFinal !== (alt.natureza ?? atual.natureza) || natFinal !== atual.natureza) {
+        db.prepare("UPDATE lancamento SET natureza = ?, atualizado_em = ? WHERE id = ?").run(natFinal, agora, id);
+      }
       if (tipoNovo !== atual.tipo) {
         db.prepare("UPDATE lancamento SET tipo = ?, atualizado_em = ? WHERE id = ?").run(tipoNovo, agora, id);
         db.prepare("INSERT INTO auditoria (lancamento_id, campo, valor_antigo, valor_novo, quando) VALUES (?,?,?,?,?)").run(id, "tipo", atual.tipo, tipoNovo, agora);
@@ -237,8 +294,9 @@ export function editarLancamento(db: Db, id: number, usuarioId: string, e: Edica
     forma_pagamento: e.forma_pagamento !== undefined ? e.forma_pagamento : atual.forma_pagamento,
     cartao_id: e.cartao_id !== undefined ? e.cartao_id : atual.cartao_id,
   };
-  const tipoNovo = e.tipo ?? (parcial.natureza === "estorno" ? atual.tipo : tipoAposReclassificar(atual.tipo, parcial.categoria, parcial.natureza));
-  const novo = { ...parcial, tipo: tipoNovo };
+  const ajust = tipoENaturezaAposReclassificar(atual.tipo, parcial.categoria, parcial.natureza);
+  // O usuario que informa tipo e natureza explicitamente manda; do contrario, os dois acompanham a categoria.
+  const novo = { ...parcial, tipo: e.tipo ?? ajust.tipo, natureza: e.natureza ?? ajust.natureza };
   const agora = agoraISO();
   const descNorm = normalizar(novo.descricao);
   const precisao = e.hora_local === undefined ? atual.precisao_horario : e.hora_local === null ? "desconhecido" : "exato";

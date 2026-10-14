@@ -267,10 +267,12 @@ export function detectarRecorrentes(db: Db, usuarioId: string, hojeLocal: string
     const k = `${l.tipo}|${chave}`;
     (grupos.get(k) ?? grupos.set(k, []).get(k)!).push(l);
   }
+  const ignoradas = new Set((db.prepare("SELECT tipo, chave FROM recorrente_ignorada WHERE usuario_id = ?").all(usuarioId) as { tipo: string; chave: string }[]).map((r) => `${r.tipo}|${r.chave}`));
   const cadastradas = listarRecorrencias(db, usuarioId).filter((x) => x.ativa === 1);
   const limiteEncerrada = mesesAtras(hojeLocal.slice(0, 7), 2);
   const out: RecorrenteDetectada[] = [];
   for (const [k, itens] of grupos) {
+    if (ignoradas.has(k)) continue;
     const [tipo, chave] = [k.slice(0, k.indexOf("|")) as RecorrenteDetectada["tipo"], k.slice(k.indexOf("|") + 1)];
     // agrupa por faixa de valor (a mesma marca pode ter dois compromissos, como duas linhas de telefone)
     const porValor = [...itens].sort((a, b) => a.valor_centavos - b.valor_centavos);
@@ -309,4 +311,19 @@ export function detectarRecorrentes(db: Db, usuarioId: string, hojeLocal: string
     }
   }
   return out.sort((a, b) => Number(a.encerrada) - Number(b.encerrada) || b.valor_centavos - a.valor_centavos);
+}
+
+
+/** O usuário diz que este compromisso NÃO é recorrente: deixa de ser sugerido e de ser marcado no extrato. */
+export function ignorarRecorrente(db: Db, usuarioId: string, tipo: RecorrenteDetectada["tipo"], chave: string, descricao: string): void {
+  if (!["despesa", "receita", "investimento"].includes(tipo) || !chave.trim()) throw new Error("Compromisso inválido.");
+  db.prepare("INSERT INTO recorrente_ignorada (usuario_id, tipo, chave, descricao) VALUES (?,?,?,?) ON CONFLICT (usuario_id, tipo, chave) DO UPDATE SET descricao = excluded.descricao").run(usuarioId, tipo, chave, descricao.slice(0, 120));
+}
+
+export function restaurarRecorrenteIgnorada(db: Db, usuarioId: string, tipo: string, chave: string): void {
+  db.prepare("DELETE FROM recorrente_ignorada WHERE usuario_id = ? AND tipo = ? AND chave = ?").run(usuarioId, tipo, chave);
+}
+
+export function listarRecorrentesIgnoradas(db: Db, usuarioId: string): { tipo: RecorrenteDetectada["tipo"]; chave: string; descricao: string }[] {
+  return db.prepare("SELECT tipo, chave, descricao FROM recorrente_ignorada WHERE usuario_id = ? ORDER BY descricao").all(usuarioId) as { tipo: RecorrenteDetectada["tipo"]; chave: string; descricao: string }[];
 }

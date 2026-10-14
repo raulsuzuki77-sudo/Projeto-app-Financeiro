@@ -4,6 +4,17 @@ import { normalizar } from "../parsing/text";
 import { naturezaPadraoDaCategoria } from "./categorias";
 import { REGRAS_BASE } from "./regras-base";
 
+/**
+ * A categoria faz sentido para o tipo? Saida nunca recebe categoria de receita, e entrada so recebe categoria de receita ou de
+ * movimento entre contas. Evita que uma regra aprendida num sentido (ex.: Pix recebido) contamine o outro (Pix enviado).
+ */
+export function categoriaCompativel(tipo: Tipo, categoria: string): boolean {
+  const ehReceita = categoria.startsWith("receita");
+  if (tipo === "despesa" || tipo === "investimento") return !ehReceita;
+  if (tipo === "receita") return ehReceita || categoria === "transferencia" || categoria === "resgate_investimento" || categoria === "nao_classificado";
+  return true;
+}
+
 export interface Classificacao {
   categoria: string;
   natureza: Natureza;
@@ -78,7 +89,7 @@ function historicoConfirmado(db: Db, usuarioId: string, tipo: Tipo): Hist[] {
   const rows = db
     .prepare("SELECT estabelecimento_norm, categoria, natureza FROM lancamento WHERE usuario_id = ? AND tipo = ? AND status = 'confirmado' AND categoria != 'nao_classificado' AND natureza != 'estorno' ORDER BY id DESC LIMIT 4000")
     .all(usuarioId, tipo) as { estabelecimento_norm: string; categoria: string; natureza: Natureza }[];
-  return rows.map((r) => ({ chave: chaveEstabelecimento(r.estabelecimento_norm), categoria: r.categoria, natureza: r.natureza })).filter((h) => h.chave);
+  return rows.map((r) => ({ chave: chaveEstabelecimento(r.estabelecimento_norm), categoria: r.categoria, natureza: r.natureza })).filter((h) => h.chave && categoriaCompativel(tipo, h.categoria));
 }
 
 function maisFrequente(itens: Hist[]): { categoria: string; natureza: Natureza; participacao: number } | null {
@@ -98,7 +109,7 @@ function maisFrequente(itens: Hist[]): { categoria: string; natureza: Natureza; 
  * lançou com categoria) em outro mês. Só vale se todas as ocorrências validadas concordam; havendo divergência, não propõe.
  * Classificações automáticas não servem de prova (evita que um erro se reproduza sozinho mês após mês).
  */
-function transacaoRepetida(db: Db, usuarioId: string, descNorm: string, ctx?: ContextoClassificacao): { categoria: string; natureza: Natureza } | null {
+function transacaoRepetida(db: Db, usuarioId: string, descNorm: string, tipo: Tipo, ctx?: ContextoClassificacao): { categoria: string; natureza: Natureza } | null {
   if (!descNorm || !ctx?.valor_centavos) return null;
   const mes = ctx.data_local ? ctx.data_local.slice(0, 7) : "";
   const rows = db
@@ -109,7 +120,7 @@ function transacaoRepetida(db: Db, usuarioId: string, descNorm: string, ctx?: Co
        ORDER BY data_local DESC, id DESC LIMIT 12`,
     )
     .all(usuarioId, descNorm, ctx.valor_centavos, mes, mes) as { categoria: string; natureza: Natureza }[];
-  if (!rows.length || rows.some((r) => r.categoria !== rows[0]!.categoria)) return null;
+  if (!rows.length || rows.some((r) => r.categoria !== rows[0]!.categoria) || !categoriaCompativel(tipo, rows[0]!.categoria)) return null;
   return { categoria: rows[0]!.categoria, natureza: rows[0]!.natureza };
 }
 
@@ -130,10 +141,11 @@ export function classificar(db: Db, usuarioId: string, descricao: string, tipo: 
     .prepare("SELECT padrao_norm, categoria, natureza FROM regra_classificacao WHERE usuario_id = ? ORDER BY length(padrao_norm) DESC")
     .all(usuarioId) as { padrao_norm: string; categoria: string; natureza: Natureza }[];
   for (const r of regras) {
+    if (!categoriaCompativel(tipo, r.categoria)) continue;
     if ((chave && r.padrao_norm === chave) || contemTermo(desc, r.padrao_norm)) return { categoria: r.categoria, natureza: r.natureza, confianca: CONF_USUARIO, fonte: "usuario" };
   }
 
-  const rep = transacaoRepetida(db, usuarioId, desc, ctx);
+  const rep = transacaoRepetida(db, usuarioId, desc, tipo, ctx);
   if (rep) return { categoria: rep.categoria, natureza: rep.natureza, confianca: CONF_REPETIDA, fonte: "repetida" };
 
   let hist: Hist[] = [];
@@ -144,6 +156,7 @@ export function classificar(db: Db, usuarioId: string, descricao: string, tipo: 
   }
 
   for (const r of REGRAS_BASE) {
+    if (!categoriaCompativel(tipo, r.categoria)) continue;
     if (r.termos.some((t) => contemTermo(desc, t))) return { categoria: r.categoria, natureza: r.natureza, confianca: CONF_BASE, fonte: "base" };
   }
 
@@ -227,9 +240,30 @@ export function tipoCoerente(tipo: Tipo, natureza: Natureza): Tipo {
   return tipo;
 }
 
-/** Ao reclassificar de transferência ou investimento para uma categoria comum, volta a ser entrada (categorias "receita_*") ou saída. */
+/** Categoria de gasto comum (não é receita, movimento entre contas nem aporte). */
+export function categoriaDeGasto(categoria: string): boolean {
+  if (categoria.startsWith("receita") || ["transferencia", "resgate_investimento", "nao_classificado"].includes(categoria)) return false;
+  const nat = naturezaPadraoDaCategoria(categoria);
+  return nat !== "transferencia" && nat !== "investimento";
+}
+
+/**
+ * Tipo e natureza finais depois de reclassificar:
+ *  - de transferência ou investimento para categoria comum, volta a ser entrada (categorias "receita_*") ou saída;
+ *  - saída com categoria de receita vira entrada;
+ *  - entrada com categoria de gasto vira estorno (devolução), que abate o gasto da categoria em vez de contar como renda;
+ *  - estorno com categoria de receita deixa de ser estorno.
+ */
+export function tipoENaturezaAposReclassificar(tipoAtual: Tipo, categoria: string, natureza: Natureza): { tipo: Tipo; natureza: Natureza } {
+  if (natureza === "estorno") return categoria.startsWith("receita") ? { tipo: "receita", natureza: naturezaPadraoDaCategoria(categoria) ?? "eventual" } : { tipo: tipoAtual, natureza };
+  if (natureza === "transferencia" || natureza === "investimento") return { tipo: tipoCoerente(tipoAtual === "transferencia" ? "despesa" : tipoAtual, natureza), natureza };
+  if (tipoAtual === "transferencia" || tipoAtual === "investimento") return { tipo: categoria.startsWith("receita") ? "receita" : "despesa", natureza };
+  if (tipoAtual === "despesa" && categoria.startsWith("receita")) return { tipo: "receita", natureza };
+  if (tipoAtual === "receita" && categoriaDeGasto(categoria)) return { tipo: "receita", natureza: "estorno" };
+  return { tipo: tipoAtual, natureza };
+}
+
+/** Mantido por compatibilidade: apenas o tipo. */
 export function tipoAposReclassificar(tipoAtual: Tipo, categoria: string, natureza: Natureza): Tipo {
-  if (natureza === "transferencia" || natureza === "investimento") return tipoCoerente(tipoAtual === "transferencia" ? "despesa" : tipoAtual, natureza);
-  if (tipoAtual === "transferencia" || tipoAtual === "investimento") return categoria.startsWith("receita") ? "receita" : "despesa";
-  return tipoAtual;
+  return tipoENaturezaAposReclassificar(tipoAtual, categoria, natureza).tipo;
 }

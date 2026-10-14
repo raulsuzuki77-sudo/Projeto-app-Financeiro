@@ -21,7 +21,7 @@ export type FormaPagamento = (typeof FORMAS_PAGAMENTO)[number];
 
 export type PrecisaoHorario = "exato" | "aproximado" | "desconhecido";
 export type Status = "pendente" | "confirmado" | "cancelado";
-export type Origem = "whatsapp" | "texto_manual" | "manual" | "recorrente" | "ofx" | "csv" | "fatura_texto" | "foto" | "pdf" | "open_finance";
+export type Origem = "whatsapp" | "texto_manual" | "manual" | "recorrente" | "parcela_prevista" | "ofx" | "csv" | "fatura_texto" | "foto" | "pdf" | "open_finance";
 
 /** Limiar a partir do qual um lançamento é confirmado sem revisão humana. */
 export const LIMIAR_CONFIANCA = 0.8;
@@ -80,4 +80,6 @@ export interface NovoLancamento {
   alerta_revisao?: string;
   /** Crédito que abate uma despesa anterior (estorno, desconto, devolução). Grava como entrada de natureza `estorno` e classifica pela despesa de origem. */
   estorno?: boolean;
+  /** Valor de cada parcela (índice 0 = parcela 1), quando as parcelas não são todas iguais (compra parcelada digitada). */
+  valores_parcelas?: number[];
 }

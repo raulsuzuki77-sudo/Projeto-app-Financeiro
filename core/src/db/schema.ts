@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS recorrente_ignorada (
   usuario_id TEXT NOT NULL DEFAULT 'local',
   tipo TEXT NOT NULL,
   chave TEXT NOT NULL,
+  descricao TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (usuario_id, tipo, chave)
 );
 
@@ -233,4 +234,28 @@ export function prepararBanco(db: Db): void {
   if (!col("meta").includes("perfil")) db.exec("ALTER TABLE meta ADD COLUMN perfil TEXT NOT NULL DEFAULT 'moderado'");
   if (!col("lancamento").includes("motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
   if (!col("lancamento").includes("evento_id")) db.exec("ALTER TABLE lancamento ADD COLUMN evento_id INTEGER REFERENCES evento(id)");
+  repararCategoriasIncoerentes(db);
+}
+
+/**
+ * Cura dados incoerentes de versoes anteriores: saida com categoria de receita (uma regra aprendida ao receber contaminava o Pix
+ * enviado) e entrada com categoria de gasto que nao e estorno. Esses lancamentos voltam a "sem categoria", pendentes, para o
+ * usuario decidir, e cada mudanca fica na auditoria. Idempotente: depois de curados, nao ha mais linhas que casem.
+ */
+export function repararCategoriasIncoerentes(db: Db): number {
+  const agora = new Date().toISOString();
+  const condSaida = "tipo IN ('despesa','investimento') AND categoria LIKE 'receita%'";
+  const condEntrada = "tipo = 'receita' AND natureza != 'estorno' AND categoria NOT LIKE 'receita%' AND categoria NOT IN ('transferencia','resgate_investimento','nao_classificado')";
+  let n = 0;
+  for (const [cond, motivo, novaCat] of [
+    [condSaida, "categoria de receita em uma saida: reclassifique", "nao_classificado"],
+    [condEntrada, "entrada com categoria de gasto: reclassifique", "receita_outras"],
+  ] as const) {
+    const afetados = (db.prepare(`SELECT COUNT(*) c FROM lancamento WHERE ${cond}`).get() as { c: number }).c;
+    if (afetados === 0) continue;
+    db.prepare(`INSERT INTO auditoria (lancamento_id, campo, valor_antigo, valor_novo, quando) SELECT id, 'categoria', categoria, ?, ? FROM lancamento WHERE ${cond}`).run(novaCat, agora);
+    db.prepare(`UPDATE lancamento SET categoria = ?, natureza = 'eventual', status = 'pendente', confianca = 0, motivo_revisao = ?, atualizado_em = ? WHERE ${cond}`).run(novaCat, motivo, agora);
+    n += afetados;
+  }
+  return n;
 }

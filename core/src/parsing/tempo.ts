@@ -59,3 +59,13 @@ export function paraInstanteUTC(dataLocal: string, hora: number | null): string 
   const h = hora ?? 12;
   return new Date(`${dataLocal}T${String(h).padStart(2, "0")}:00:00-03:00`).toISOString();
 }
+
+/** Soma meses a uma data local; se o dia não existe no mês de destino (31 em fevereiro), usa o último dia. */
+export function somarMeses(dataLocal: string, meses: number): string {
+  const [a, m, d] = dataLocal.split("-").map(Number) as [number, number, number];
+  const total = a * 12 + (m - 1) + meses;
+  const ano = Math.floor(total / 12);
+  const mes = (total % 12) + 1;
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
+}
