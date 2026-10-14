@@ -73,7 +73,7 @@ interface Hist {
 /** Lançamentos já CONFIRMADOS pelo usuário com categoria real: base do aprendizado automático. */
 function historicoConfirmado(db: Db, usuarioId: string, tipo: Tipo): Hist[] {
   const rows = db
-    .prepare("SELECT estabelecimento_norm, categoria, natureza FROM lancamento WHERE usuario_id = ? AND tipo = ? AND status = 'confirmado' AND categoria != 'nao_classificado' ORDER BY id DESC LIMIT 4000")
+    .prepare("SELECT estabelecimento_norm, categoria, natureza FROM lancamento WHERE usuario_id = ? AND tipo = ? AND status = 'confirmado' AND categoria != 'nao_classificado' AND natureza != 'estorno' ORDER BY id DESC LIMIT 4000")
     .all(usuarioId, tipo) as { estabelecimento_norm: string; categoria: string; natureza: Natureza }[];
   return rows.map((r) => ({ chave: chaveEstabelecimento(r.estabelecimento_norm), categoria: r.categoria, natureza: r.natureza })).filter((h) => h.chave);
 }
@@ -187,6 +187,8 @@ export function sugerirCategorias(db: Db, usuarioId: string, descricao: string, 
     const meus = tokensDe(chave);
     for (const cat of contagem(hist.filter((h) => h.chave !== chave && jaccard(meus, tokensDe(h.chave)) >= 0.5))) add(cat, "parecido");
   }
+  // Entrada sem historico: as opcoes tipicas (renda de trabalho, outras rendas ou transferencia entre as proprias contas).
+  if (tipo === "receita") for (const cat of ["receita_trabalho", "receita_outras", "transferencia"]) if (out.length < limite) add(cat, "mais_usada");
   if (out.length < limite) {
     const c = new Map<string, number>();
     for (const h of hist.slice(0, 500)) c.set(h.categoria, (c.get(h.categoria) ?? 0) + 1);

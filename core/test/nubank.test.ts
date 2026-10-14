@@ -166,3 +166,10 @@ test("reclassificar para transferencia tira o gasto da despesa e voltar a catego
   assert.equal(obterLancamento(db, id)!.tipo, "despesa");
   assert.equal(resumoMensal(db, "u", "2026-08").despesas_centavos, 3000);
 });
+
+test("sugestoes de entrada nao herdam categorias de despesa dos estornos", () => {
+  const db = abrirBancoTeste();
+  importar(db, CONTA);
+  const sug = sugerirCategorias(db, "u", "Pix recebido: ALGUEM NOVO DA SILVA", "receita").map((s) => s.categoria);
+  assert.deepEqual(sug, ["receita_trabalho", "receita_outras", "transferencia"]);
+});

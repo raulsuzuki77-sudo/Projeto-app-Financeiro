@@ -166,3 +166,13 @@ Tela de revisão: pendentes agrupados por estabelecimento (maiores grupos primei
 
 Não verificado: nenhum formato além dos arquivos enviados; extratos de outros meses ou bancos.
 
+## 14. Versão web para computador e leitura de PDF/imagem no navegador (14/10/2026)
+
+Objetivo: testar importação e classificação no computador antes de instalar no iPhone. O mesmo código roda no navegador (react-native-web); o banco é SQLite (sql.js) gravado no IndexedDB do navegador, no endereço `http://localhost:8123`, e o backup cifrado usa o mesmo formato do iPhone (restaura nos dois sentidos). Empacotamento: `npm run empacotar-pc` gera um zip com o site estático, um servidor local mínimo (`scripts/pc/servir.cjs`, só Node, só 127.0.0.1) e atalhos para macOS e Windows. Motivo do servidor: o roteador do aplicativo precisa de um endereço http; abrir o HTML direto do disco (file://) quebra a navegação e o carregamento do SQLite.
+
+Leitura de documentos no navegador (`app/src/lib/ocr.web.ts`): PDF com camada de texto é lido pelo pdf.js sem OCR; PDF de imagem e fotos passam pelo Tesseract (português, empacotado localmente, funciona sem internet); PDF com senha pede a senha e distingue "protegido" de "senha incorreta". A senha não é guardada na versão web (só dura a sessão da página). HEIC não é lido pelo navegador.
+
+Verificado no Chromium com a fatura de exemplo (PDF de imagem, 3 páginas): 38 itens lidos, soma confere com o total da fatura; a cópia protegida por senha foi recusada sem senha, recusada com senha errada e lida com a senha certa. Tempo: 7 a 9 s por página, mais o carregamento inicial (cerca de 5 MB). Ajuste necessário: reamostrar a página renderizada pelo pdf.js fazia o Tesseract errar o último dígito do ano; a solução foi ler a imagem original embutida no PDF e ampliá-la. Esse ajuste foi calibrado com uma única fatura; a conferência de soma continua sendo a rede de segurança e outros PDFs digitalizados podem se comportar diferente. O reconhecimento no navegador (Tesseract) não é o mesmo do iPhone (Vision): os resultados podem divergir.
+
+No iPhone, o PDF com senha usa o desbloqueio do PDFKit e a senha por cartão fica no Chaveiro. NÃO verificado em aparelho: a compilação do Swift, o fluxo de senha e a leitura real.
+

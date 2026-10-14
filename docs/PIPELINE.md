@@ -13,6 +13,8 @@ Atualizado em 14/10/2026 (segunda versao do app). Base: decisao de tornar o apli
 | L3 Aplicativo local | expo-sqlite, telas sem servidor, Face ID, backup/restauracao |
 | L4 OCR nativo | Modulo Swift (Vision + PDFKit) e agrupamento de linhas |
 | L5 Guia de instalacao | `docs/INSTALACAO_IPHONE.md` |
+| N1 Extratos Nubank e aprendizado | CSV de conta e cartao, estorno, transferencia, aporte, camada de transacao repetida (DECISOES, item 13) |
+| N2 Versao web para computador | Pacote zip com banco persistente no navegador, importacao de CSV/OFX/PDF/imagem, PDF com senha (DECISOES, item 14) |
 | U1 a U4 Segunda versao | Nova navegacao, pizza, revisao rapida, recorrentes, edicao/exclusao, senha de PDF, PDF pelo Compartilhar, previa web (ver DECISOES, item 12) |
 
 ## Em aberto (depende do usuario)

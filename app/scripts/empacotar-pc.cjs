@@ -55,7 +55,8 @@ Onde ficam os dados
 O que funciona e o que nao funciona aqui
   Funciona: importar extratos CSV/OFX (inclui os CSVs do Nubank), classificar, revisar, graficos, recorrentes, metas, backup.
   PDF e foto de fatura/comprovante: lidos no proprio navegador (PDF com texto, PDF de imagem e imagens JPG/PNG), inclusive PDF com senha.
-  A qualidade do reconhecimento de imagem aqui (Tesseract) pode diferir da do iPhone (Vision).
+  PDF de imagem leva em torno de 8 segundos por pagina (a primeira leitura carrega cerca de 5 MB); a tela fica ocupada nesse tempo.
+  A qualidade do reconhecimento de imagem aqui (Tesseract) pode diferir da do iPhone (Vision): confira sempre a mensagem de conferencia da soma.
   Nao existe aqui: Face ID, Chaveiro (a senha do PDF so dura enquanto a pagina estiver aberta), camera e menu Compartilhar.
 `,
 );
