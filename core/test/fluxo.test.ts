@@ -31,10 +31,10 @@ test("mensagem: registra, classifica e e idempotente", () => {
 
 test("mensagem sem classificacao fica pendente; correcao confirma e aprende", () => {
   const db = bancoComCartao();
-  assert.match(processarMensagem(db, { id: "a", usuario_id: U, texto: "trilhas da amazonia 16", recebida_em: AGORA }), /PENDENTE/);
+  assert.match(processarMensagem(db, { id: "a", usuario_id: U, texto: "xyzzy corp 16", recebida_em: AGORA }), /PENDENTE/);
   assert.match(processarMensagem(db, { id: "b", usuario_id: U, texto: "categoria lazer_passeios", recebida_em: AGORA }), /aprendida/);
   // proximo lancamento do mesmo estabelecimento ja sai classificado e confirmado
-  const r = processarMensagem(db, { id: "c", usuario_id: U, texto: "trilhas da amazonia 20", recebida_em: AGORA });
+  const r = processarMensagem(db, { id: "c", usuario_id: U, texto: "xyzzy corp 20", recebida_em: AGORA });
   assert.match(r, /Registrado:.*lazer_passeios/);
   assert.doesNotMatch(r, /PENDENTE/);
   const log = db.prepare("SELECT campo FROM auditoria").all();
@@ -69,7 +69,8 @@ test("fatura Nomad (trecho): le itens, parcela, pagamento como transferencia e e
   const total = (db.prepare("SELECT SUM(valor_centavos) s FROM lancamento WHERE tipo='despesa'").get() as { s: number }).s;
   assert.equal(total, 43526 + 770 + 26439 + 5005 + 3390 + 1600 + 12000 + 3699 + 41659 + 5190 + 22468 + 2450 + 10000 + 16500);
   // itens sem regra ficam pendentes para revisao
-  assert.ok(rel.pendentes >= 3);
+  assert.ok(rel.pendentes >= 1);
+  assert.equal((db.prepare("SELECT status s FROM lancamento WHERE descricao LIKE 'PLAZA BITTAR%'").get() as { s: string }).s, "pendente");
 });
 
 test("OFX: salario, assinatura e pagamento de fatura; reimportar nao duplica", () => {

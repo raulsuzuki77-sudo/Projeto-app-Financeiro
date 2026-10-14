@@ -25,3 +25,5 @@ export * from "./backup/dados";
 export * from "./backup/cifra";
 export * from "./adaptadores/expo-sqlite";
 export * from "./ocr/linhas";
+export * from "./recorrencias/recorrencias";
+export * from "./classification/categorias";

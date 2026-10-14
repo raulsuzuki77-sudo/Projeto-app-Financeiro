@@ -1,9 +1,10 @@
 import type { Db } from "../db/tipos";
 import { sha256Hex } from "../util/sha256";
-import { LIMIAR_CONFIANCA, type Lancamento, type NovoLancamento, type Natureza, type Status } from "../domain/types";
-import { aprenderRegra, classificar } from "../classification/classificador";
+import { FORMAS_PAGAMENTO, LIMIAR_CONFIANCA, NATUREZAS, TIPOS, type FormaPagamento, type Lancamento, type NovoLancamento, type Natureza, type Status, type Tipo } from "../domain/types";
+import { aprenderRegra, chaveEstabelecimento, classificar, naturezaPara, type Classificacao } from "../classification/classificador";
+import { naturezaPadraoDaCategoria } from "../classification/categorias";
 import { normalizar } from "../parsing/text";
-import { paraInstanteUTC, somarDias } from "../parsing/tempo";
+import { dataValida, paraInstanteUTC, somarDias } from "../parsing/tempo";
 
 export type ResultadoRegistro =
   | { resultado: "criado"; lancamento: Lancamento }
@@ -14,8 +15,12 @@ function agoraISO(): string {
   return new Date().toISOString();
 }
 
+function hashDe(usuario: string, tipo: string, valor: number, data: string, ref: number, descNorm: string, parcela: number): string {
+  return sha256Hex([usuario, tipo, valor, data, ref, descNorm, parcela].join("|"));
+}
+
 function hashDedup(n: NovoLancamento, descNorm: string): string {
-  return sha256Hex([n.usuario_id, n.tipo, n.valor_centavos, n.data_local, n.cartao_id ?? n.conta_id ?? 0, descNorm, n.parcela_atual ?? 0].join("|"));
+  return hashDe(n.usuario_id, n.tipo, n.valor_centavos, n.data_local, n.cartao_id ?? n.conta_id ?? 0, descNorm, n.parcela_atual ?? 0);
 }
 
 function tokens(s: string): Set<string> {
@@ -34,8 +39,8 @@ function similaridade(a: string, b: string): number {
 function motivoRevisao(n: NovoLancamento, confianca: number, temCandidato: boolean): string {
   const m: string[] = [];
   if (n.alerta_revisao) m.push(n.alerta_revisao);
-  if (temCandidato) m.push("valor igual a outro lancamento em data proxima (possivel duplicidade)");
-  if (confianca < LIMIAR_CONFIANCA) m.push("categoria nao reconhecida com seguranca");
+  if (temCandidato) m.push("valor igual a outro lançamento em data próxima (possível duplicidade)");
+  if (confianca < LIMIAR_CONFIANCA) m.push("categoria não reconhecida com segurança");
   return m.join("; ");
 }
 
@@ -88,9 +93,12 @@ export function registrarLancamento(db: Db, n: NovoLancamento): ResultadoRegistr
       return { resultado: "mesclado", lancamento: parecido };
     }
 
-    const cls = classificar(db, n.usuario_id, n.descricao, n.tipo);
+    const definida = n.categoria !== undefined;
+    const cls: Classificacao = definida
+      ? { categoria: n.categoria!, natureza: n.natureza ?? naturezaPadraoDaCategoria(n.categoria!) ?? "eventual", confianca: 1, fonte: "usuario" }
+      : classificar(db, n.usuario_id, n.descricao, n.tipo);
     const natureza: Natureza = n.parcela_total && n.parcela_total > 1 && cls.natureza === "eventual" ? "parcelado" : cls.natureza;
-    const status: Status = cls.confianca >= LIMIAR_CONFIANCA && candidatos.length === 0 && !n.alerta_revisao ? "confirmado" : "pendente";
+    const status: Status = cls.confianca >= LIMIAR_CONFIANCA && (definida || candidatos.length === 0) && !n.alerta_revisao ? "confirmado" : "pendente";
     const info = db
       .prepare(
         `INSERT INTO lancamento (usuario_id, tipo, valor_centavos, descricao, estabelecimento_norm, categoria, natureza,
@@ -119,9 +127,12 @@ export interface Alteracao {
 }
 
 /** Edita campos permitidos, grava auditoria e aprende regra quando a categoria é corrigida. */
-export function alterarLancamento(db: Db, id: number, usuarioId: string, alt: Alteracao): Lancamento {
+export function alterarLancamento(db: Db, id: number, usuarioId: string, altOriginal: Alteracao): Lancamento {
   const atual = obterLancamento(db, id);
-  if (!atual || atual.usuario_id !== usuarioId) throw new Error("Lancamento nao encontrado");
+  if (!atual || atual.usuario_id !== usuarioId) throw new Error("Lançamento não encontrado");
+  // Ao trocar só a categoria, a natureza acompanha a categoria (ex.: "Assinaturas" -> assinatura), salvo parcelado.
+  const alt: Alteracao = { ...altOriginal };
+  if (alt.categoria && alt.natureza === undefined) alt.natureza = naturezaPara(alt.categoria, atual.natureza);
   const agora = agoraISO();
   const tx = db.transaction(() => {
     for (const campo of ["categoria", "natureza", "status"] as const) {
@@ -143,4 +154,107 @@ export function alterarLancamento(db: Db, id: number, usuarioId: string, alt: Al
   });
   tx();
   return obterLancamento(db, id)!;
+}
+
+
+export interface EdicaoCompleta {
+  descricao?: string;
+  valor_centavos?: number;
+  data_local?: string;
+  /** null remove o horário (fica "desconhecido"). */
+  hora_local?: number | null;
+  tipo?: Tipo;
+  categoria?: string;
+  natureza?: Natureza;
+  forma_pagamento?: FormaPagamento | null;
+  cartao_id?: number | null;
+}
+
+/**
+ * Edição completa de um lançamento pelo usuário. Valida cada campo, recalcula a chave de duplicidade,
+ * registra auditoria campo a campo e deixa o lançamento confirmado (quem edita está revisando).
+ */
+export function editarLancamento(db: Db, id: number, usuarioId: string, e: EdicaoCompleta): Lancamento {
+  const atual = obterLancamento(db, id);
+  if (!atual || atual.usuario_id !== usuarioId) throw new Error("Lançamento não encontrado");
+  if (e.descricao !== undefined && (!e.descricao.trim() || e.descricao.trim().length > 120)) throw new Error("A descrição deve ter de 1 a 120 caracteres.");
+  if (e.valor_centavos !== undefined && (!Number.isInteger(e.valor_centavos) || e.valor_centavos <= 0)) throw new Error("O valor deve ser maior que zero.");
+  if (e.data_local !== undefined) {
+    const m = e.data_local.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m || !dataValida(+m[1]!, +m[2]!, +m[3]!)) throw new Error("Data inválida.");
+  }
+  if (e.hora_local != null && (!Number.isInteger(e.hora_local) || e.hora_local < 0 || e.hora_local > 23)) throw new Error("Hora inválida.");
+  if (e.tipo !== undefined && !(TIPOS as readonly string[]).includes(e.tipo)) throw new Error("Tipo inválido.");
+  if (e.natureza !== undefined && !(NATUREZAS as readonly string[]).includes(e.natureza)) throw new Error("Natureza inválida.");
+  if (e.forma_pagamento != null && !(FORMAS_PAGAMENTO as readonly string[]).includes(e.forma_pagamento)) throw new Error("Forma de pagamento inválida.");
+  if (e.categoria !== undefined && !e.categoria.trim()) throw new Error("Categoria inválida.");
+  if (e.cartao_id != null && !db.prepare("SELECT 1 FROM cartao WHERE id = ? AND usuario_id = ?").get(e.cartao_id, usuarioId)) throw new Error("Cartão inexistente.");
+
+  const novo = {
+    descricao: e.descricao !== undefined ? e.descricao.trim() : atual.descricao,
+    valor_centavos: e.valor_centavos ?? atual.valor_centavos,
+    data_local: e.data_local ?? atual.data_local,
+    hora_local: e.hora_local !== undefined ? e.hora_local : atual.hora_local,
+    tipo: e.tipo ?? atual.tipo,
+    categoria: e.categoria?.trim() ?? atual.categoria,
+    natureza: e.natureza ?? (e.categoria !== undefined ? naturezaPara(e.categoria.trim(), atual.natureza) : atual.natureza),
+    forma_pagamento: e.forma_pagamento !== undefined ? e.forma_pagamento : atual.forma_pagamento,
+    cartao_id: e.cartao_id !== undefined ? e.cartao_id : atual.cartao_id,
+  };
+  const agora = agoraISO();
+  const descNorm = normalizar(novo.descricao);
+  const precisao = e.hora_local === undefined ? atual.precisao_horario : e.hora_local === null ? "desconhecido" : "exato";
+
+  const tx = db.transaction(() => {
+    const audit = (campo: string, antigo: unknown, valor: unknown) => {
+      if (String(antigo) !== String(valor)) db.prepare("INSERT INTO auditoria (lancamento_id, campo, valor_antigo, valor_novo, quando) VALUES (?,?,?,?,?)").run(id, campo, String(antigo), String(valor), agora);
+    };
+    for (const campo of ["descricao", "valor_centavos", "data_local", "hora_local", "tipo", "categoria", "natureza", "forma_pagamento", "cartao_id"] as const) audit(campo, atual[campo], novo[campo]);
+    db.prepare(
+      `UPDATE lancamento SET descricao = ?, estabelecimento_norm = ?, valor_centavos = ?, data_local = ?, hora_local = ?, precisao_horario = ?, ocorrido_em = ?,
+         tipo = ?, categoria = ?, natureza = ?, forma_pagamento = ?, cartao_id = ?, hash_dedup = ?, status = 'confirmado', confianca = 1,
+         motivo_revisao = NULL, atualizado_em = ? WHERE id = ?`,
+    ).run(
+      novo.descricao, descNorm, novo.valor_centavos, novo.data_local, novo.hora_local, precisao, paraInstanteUTC(novo.data_local, novo.hora_local),
+      novo.tipo, novo.categoria, novo.natureza, novo.forma_pagamento, novo.cartao_id,
+      hashDe(usuarioId, novo.tipo, novo.valor_centavos, novo.data_local, novo.cartao_id ?? atual.conta_id ?? 0, descNorm, atual.parcela_atual ?? 0), agora, id,
+    );
+    if (e.categoria !== undefined && novo.categoria !== "nao_classificado") aprenderRegra(db, usuarioId, descNorm, novo.categoria, novo.natureza);
+  });
+  tx();
+  return obterLancamento(db, id)!;
+}
+
+/**
+ * Define a categoria de um lançamento pendente e, opcionalmente, de todos os outros pendentes do MESMO estabelecimento,
+ * de uma vez (classificar uma vez resolve todos os parecidos). Devolve os identificadores alterados.
+ */
+export function classificarEmLote(db: Db, id: number, usuarioId: string, categoria: string, aplicarSimilares = true): number[] {
+  const base = obterLancamento(db, id);
+  if (!base || base.usuario_id !== usuarioId) throw new Error("Lançamento não encontrado");
+  const alterados: number[] = [];
+  const tx = db.transaction(() => {
+    alterarLancamento(db, id, usuarioId, { categoria, status: "confirmado" });
+    alterados.push(id);
+    if (!aplicarSimilares) return;
+    const chave = chaveEstabelecimento(base.estabelecimento_norm);
+    if (!chave) return;
+    const outros = db.prepare("SELECT id, estabelecimento_norm FROM lancamento WHERE usuario_id = ? AND status = 'pendente' AND tipo = ? AND id != ?").all(usuarioId, base.tipo, id) as { id: number; estabelecimento_norm: string }[];
+    for (const o of outros) {
+      if (chaveEstabelecimento(o.estabelecimento_norm) === chave) {
+        alterarLancamento(db, o.id, usuarioId, { categoria, status: "confirmado" });
+        alterados.push(o.id);
+      }
+    }
+  });
+  tx();
+  return alterados;
+}
+
+/** Remove (cancela) um lançamento; `restaurar` o traz de volta. A origem fica registrada, então reimportar não o recria. */
+export function excluirLancamento(db: Db, id: number, usuarioId: string): void {
+  alterarLancamento(db, id, usuarioId, { status: "cancelado" });
+}
+export function restaurarLancamento(db: Db, id: number, usuarioId: string): void {
+  alterarLancamento(db, id, usuarioId, { status: "confirmado" });
 }

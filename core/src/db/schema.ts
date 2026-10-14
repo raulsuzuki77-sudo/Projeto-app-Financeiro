@@ -1,6 +1,6 @@
 import type { Db } from "./tipos";
 
-export const VERSAO_SCHEMA = 1;
+export const VERSAO_SCHEMA = 2;
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conta (
@@ -23,6 +23,23 @@ CREATE TABLE IF NOT EXISTS cartao (
   dia_fechamento INTEGER,
   dia_vencimento INTEGER,
   limite_centavos INTEGER
+);
+
+-- Gastos, receitas ou aportes que se repetem todo mes no mesmo dia (aluguel, assinaturas, salario...).
+CREATE TABLE IF NOT EXISTS recorrencia (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  descricao TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('despesa','receita','investimento')),
+  valor_centavos INTEGER NOT NULL CHECK (valor_centavos > 0),
+  categoria TEXT NOT NULL,
+  natureza TEXT NOT NULL,
+  dia_mes INTEGER NOT NULL CHECK (dia_mes BETWEEN 1 AND 31),
+  forma_pagamento TEXT,
+  cartao_id INTEGER REFERENCES cartao(id),
+  inicio_mes TEXT NOT NULL,
+  ativa INTEGER NOT NULL DEFAULT 1,
+  criada_em TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS lancamento (

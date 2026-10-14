@@ -1,4 +1,5 @@
 import type { Db } from "../db/tipos";
+import { normalizar } from "../parsing/text";
 
 export interface ResumoMensal {
   mes: string;
@@ -85,10 +86,25 @@ export function calendarioMensal(db: Db, usuarioId: string, mes: string): { data
     .all(usuarioId, mes) as { data: string; total_centavos: number; quantidade: number }[];
 }
 
-export function listarLancamentos(db: Db, usuarioId: string, filtro: { mes?: string; status?: string }) {
+export interface FiltroLancamentos {
+  mes?: string;
+  /** Sem `status`, cancelados (excluídos) não aparecem. */
+  status?: string;
+  tipo?: string;
+  categoria?: string;
+  /** Busca por parte da descrição, sem distinguir acentos nem maiúsculas. */
+  busca?: string;
+  limite?: number;
+}
+
+export function listarLancamentos(db: Db, usuarioId: string, filtro: FiltroLancamentos) {
   const cond = ["usuario_id = ?"];
   const args: (string | number)[] = [usuarioId];
   if (filtro.mes) { cond.push("substr(data_local,1,7) = ?"); args.push(filtro.mes); }
-  if (filtro.status) { cond.push("status = ?"); args.push(filtro.status); }
-  return db.prepare(`SELECT * FROM lancamento WHERE ${cond.join(" AND ")} ORDER BY data_local DESC, id DESC LIMIT 500`).all(...args);
+  if (filtro.status) { cond.push("status = ?"); args.push(filtro.status); } else cond.push("status != 'cancelado'");
+  if (filtro.tipo) { cond.push("tipo = ?"); args.push(filtro.tipo); }
+  if (filtro.categoria) { cond.push("categoria = ?"); args.push(filtro.categoria); }
+  if (filtro.busca?.trim()) { cond.push("estabelecimento_norm LIKE ?"); args.push(`%${normalizar(filtro.busca)}%`); }
+  const lim = Math.min(Math.max(filtro.limite ?? 500, 1), 2000);
+  return db.prepare(`SELECT * FROM lancamento WHERE ${cond.join(" AND ")} ORDER BY data_local DESC, id DESC LIMIT ${lim}`).all(...args);
 }

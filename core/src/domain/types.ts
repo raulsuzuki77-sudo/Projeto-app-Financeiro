@@ -19,7 +19,7 @@ export type FormaPagamento = (typeof FORMAS_PAGAMENTO)[number];
 
 export type PrecisaoHorario = "exato" | "aproximado" | "desconhecido";
 export type Status = "pendente" | "confirmado" | "cancelado";
-export type Origem = "whatsapp" | "texto_manual" | "ofx" | "csv" | "fatura_texto" | "foto" | "pdf" | "open_finance";
+export type Origem = "whatsapp" | "texto_manual" | "manual" | "recorrente" | "ofx" | "csv" | "fatura_texto" | "foto" | "pdf" | "open_finance";
 
 /** Limiar a partir do qual um lançamento é confirmado sem revisão humana. */
 export const LIMIAR_CONFIANCA = 0.8;
@@ -69,6 +69,9 @@ export interface NovoLancamento {
   /** Identificador único na origem (wamid, FITID, hash de linha): garante idempotência. */
   referencia: string;
   texto_bruto?: string;
+  /** Categoria/natureza definidas pelo usuário (formulário, recorrência): dispensam a classificação automática e o lançamento nasce confirmado. */
+  categoria?: string;
+  natureza?: Natureza;
   /** Quando preenchido, o lançamento nasce pendente com este motivo, mesmo se a classificação for confiável. */
   alerta_revisao?: string;
 }
