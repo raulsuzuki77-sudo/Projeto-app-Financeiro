@@ -13,12 +13,25 @@ const RE_DATA_US = /^\d{2}\/\d{2}\/\d{4}$/;
 
 const ehDinheiro = (t: string): boolean => /^\(?-?\$?\d[\d,]*\.\d+\)?$/.test(t) && centavosUS(t) !== null;
 
-export function ehExtratoBtgUS(linhas: LinhaTexto[]): boolean {
+const MARCAS_US: [string, RegExp][] = [
+  ["BTG Pactual US", /btg\s*pactual\s*us/],
+  ["Account Statement", /account\s*statement/],
+  ["Ending Account Value", /ending\s*account\s*value/],
+];
+
+export function marcasBtgUS(linhas: LinhaTexto[]): [string, boolean][] {
   const t = sa(textoDasLinhas(linhas).join(" "));
-  return /btg\s*pactual us/.test(t) && /account statement/.test(t) && /ending account value/.test(t);
+  return MARCAS_US.map(([nome, re]) => [nome, re.test(t)]);
 }
 
-/** Cabecalho e rodape repetidos em cada pagina. */
+export function ehExtratoBtgUS(linhas: LinhaTexto[]): boolean {
+  return marcasBtgUS(linhas).every(([, ok]) => ok);
+}
+
+/**
+ * Cabecalho e rodape repetidos em cada pagina. Tolerante a linhas mescladas pela posicao (ex.: "Account Statement 601 LEXINGTON AVENUE"):
+ * as marcas do cabecalho valem em qualquer ponto da linha, pois nenhuma linha de posicao ou de atividade as contem.
+ */
 function ehRuido(l: string): boolean {
   return (
     /^Page \d+ of \d+/i.test(l) ||
@@ -26,12 +39,12 @@ function ehRuido(l: string): boolean {
     /^Custodial services provided/i.test(l) ||
     /^All DriveWealth trademarks/i.test(l) ||
     /^third party and are the property/i.test(l) ||
-    /^BTG Pactual US Capital/i.test(l) ||
+    /BTG Pactual US Capital/i.test(l) ||
     /^Account Statement\b/i.test(l) ||
-    /^\d+(st|nd|rd|th) FLOOR/i.test(l) ||
-    /^New York NY/i.test(l) ||
-    /^Account Number:/i.test(l) ||
-    /^[A-Za-z]+ \d{1,2}, \d{4}\s*-\s*[A-Za-z]+ \d{1,2}, \d{4}$/.test(l)
+    /\b\d+(st|nd|rd|th) FLOOR\b/i.test(l) ||
+    /\bNew York NY\b/i.test(l) ||
+    /\bAccount Number:/i.test(l) ||
+    /[A-Za-z]+ \d{1,2}, \d{4}\s*-\s*[A-Za-z]+ \d{1,2}, \d{4}/.test(l)
   );
 }
 

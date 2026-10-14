@@ -1,5 +1,5 @@
-import { ehExtratoBtgBrasil, lerExtratoBtgBrasil } from "./btg-brasil";
-import { ehExtratoBtgUS, lerExtratoBtgUS } from "./btg-us";
+import { ehExtratoBtgBrasil, lerExtratoBtgBrasil, marcasBtgBrasil } from "./btg-brasil";
+import { ehExtratoBtgUS, lerExtratoBtgUS, marcasBtgUS } from "./btg-us";
 import type { LinhaTexto, NomeLeitor, ResultadoLeitura } from "./tipos";
 
 export { lerExtratoBtgBrasil, lerExtratoBtgUS };
@@ -9,6 +9,12 @@ export function detectarExtrato(linhas: LinhaTexto[]): NomeLeitor | null {
   if (ehExtratoBtgBrasil(linhas)) return "btg_brasil";
   if (ehExtratoBtgUS(linhas)) return "btg_us";
   return null;
+}
+
+/** Quais marcas de cada leitor foram encontradas no texto: vai no diagnostico para mostrar por que o PDF nao foi reconhecido. */
+export function explicarDeteccao(linhas: LinhaTexto[]): string[] {
+  const fmt = (nome: string, marcas: [string, boolean][]) => `${nome}: ${marcas.map(([m, ok]) => `${m}=${ok ? "sim" : "NÃO"}`).join(", ")}`;
+  return [fmt("BTG Brasil", marcasBtgBrasil(linhas)), fmt("BTG US", marcasBtgUS(linhas))];
 }
 
 export const MENSAGEM_NAO_RECONHECIDO =

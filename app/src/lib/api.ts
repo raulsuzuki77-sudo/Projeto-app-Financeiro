@@ -10,14 +10,15 @@ import {
 } from "../../../core/src/index";
 import { obterBanco } from "../data/banco";
 import {
-  adicionarPosicaoManual as adicionarPosicaoManualInv, aportesLancamentos, definirCambio as definirCambioInv, evolucaoPatrimonio, extratoJaImportado, listarCambios, listarExtratos,
-  movimentosDoMes, patrimonio as patrimonioInv, removerCambio as removerCambioInv, removerExtrato, removerPosicao as removerPosicaoInv, salvarExtrato as salvarExtratoInv, variacaoDoMes,
-  type ExtratoLido, type PosicaoManual,
+  adicionarPosicaoManual as adicionarPosicaoManualInv, aportesLancamentos, definirCambio as definirCambioInv, evolucaoPatrimonio, extratoJaImportado, listarCadastroAtivos, listarCambios, listarExtratos,
+  montarCarteira, movimentosDoMes, patrimonio as patrimonioInv, removerCadastroAtivo as removerCadastroAtivoInv, removerCambio as removerCambioInv, removerExtrato, removerPosicao as removerPosicaoInv,
+  salvarCadastroAtivo as salvarCadastroAtivoInv, salvarExtrato as salvarExtratoInv, variacaoDoMes,
+  type AlteracaoCadastro, type ExtratoLido, type PosicaoManual,
 } from "../../../core/src/index";
 
 export type { ClasseId, NovoEvento, PainelOrcamento, RecorrenteDetectada, Cartao, CenarioMeta, Lancamento, LancamentoManual, Meta, Recorrencia, ResumoMensal, Sugestao, EdicaoCompleta };
 export type PremissaApi = Premissa;
-export type { ExtratoLido, PosicaoManual };
+export type { AlteracaoCadastro, ExtratoLido, PosicaoManual };
 export type DadosLiberdade = {
   patrimonio: ReturnType<typeof patrimonioInv>;
   variacao: ReturnType<typeof variacaoDoMes>;
@@ -26,6 +27,9 @@ export type DadosLiberdade = {
   lancamentos: ReturnType<typeof aportesLancamentos>;
   extratos: ReturnType<typeof listarExtratos>;
   cambios: ReturnType<typeof listarCambios>;
+  /** Patrimonio do mes em genero > especie > ativo, com preco medio, resultado, setor e exposicao. */
+  carteira: ReturnType<typeof montarCarteira>;
+  cadastros: ReturnType<typeof listarCadastroAtivos>;
 };
 export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
 export type Reserva = ReturnType<typeof reservaDeEmergencia>;
@@ -150,8 +154,13 @@ export const api = {
       lancamentos: aportesLancamentos(db, USUARIO, mes),
       extratos: listarExtratos(db, USUARIO),
       cambios: listarCambios(db, USUARIO),
+      carteira: montarCarteira(db, USUARIO, mes),
+      cadastros: listarCadastroAtivos(db, USUARIO),
     };
   },
+  /** Cadastro do ativo (preço médio informado, espécie, setor, exposição, Meta), por código ou nome; persiste entre extratos. */
+  salvarCadastroAtivo: async (chave: string, alteracao: AlteracaoCadastro) => salvarCadastroAtivoInv(obterBanco(), USUARIO, chave, alteracao),
+  removerCadastroAtivo: async (chave: string) => removerCadastroAtivoInv(obterBanco(), USUARIO, chave),
   /** O arquivo (pelo hash do conteúdo) já foi importado? */
   extratoInvestimentoImportado: async (hash: string) => extratoJaImportado(obterBanco(), USUARIO, hash),
   /** Grava o extrato já lido e confirmado pelo usuário. Idempotente pelo hash: reimportar devolve status "ja_importado". */

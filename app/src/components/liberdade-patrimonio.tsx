@@ -30,6 +30,20 @@ export function LiberdadePatrimonio({ dados, mes }: { dados: DadosLiberdade; mes
         </Text>
       </View>
 
+      {!p.sem_dados && p.meta_centavos !== 0 ? (
+        <View style={{ gap: 4 }}>
+          <View accessible accessibilityLabel={`Liberdade financeira, sem Meta: ${formatarBRL(p.liberdade_centavos)}`} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+            <Text style={{ color: t.suave, fontSize: 14, flexShrink: 1 }}>Liberdade financeira (sem Meta)</Text>
+            <Text style={{ color: t.texto, fontSize: 14, fontWeight: "700" }}>{formatarBRL(p.liberdade_centavos)}</Text>
+          </View>
+          <View accessible accessibilityLabel={`Meta, reserva e provisões fora da liberdade financeira: ${formatarBRL(p.meta_centavos)}`} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+            <Text style={{ color: t.suave, fontSize: 14, flexShrink: 1 }}>Meta (reserva e provisões)</Text>
+            <Text style={{ color: t.texto, fontSize: 14, fontWeight: "700" }}>{formatarBRL(p.meta_centavos)}</Text>
+          </View>
+          <Texto suave pequeno>A Meta é o que você saca quando o fato provisionado ocorre; fica fora do que se compara com as metas de liberdade financeira. Variação e rentabilidade estimada abaixo valem para o patrimônio total.</Texto>
+        </View>
+      ) : null}
+
       {!p.sem_dados ? (
         <>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>

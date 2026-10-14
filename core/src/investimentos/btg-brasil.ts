@@ -32,9 +32,22 @@ function ehRuido(n: string): boolean {
   return palavras.every((p) => ["extrato", "da", "conta", "investimento"].includes(p));
 }
 
-export function ehExtratoBtgBrasil(linhas: LinhaTexto[]): boolean {
+/** Marcas que identificam o extrato (aplicadas ao texto sem acentos e em minusculas). */
+const MARCAS_BR: [string, RegExp][] = [
+  ["BTG Pactual", /btg\s*pactual/],
+  ["Sumário", /sumario/],
+  ["Saldo Bruto", /saldo bruto/],
+  ["Conta investimento + número", /conta investimento\s+\d/],
+  ["Período de dd/mm/aa", /periodo de \d{2}\/\d{2}\/\d{2}/],
+];
+
+export function marcasBtgBrasil(linhas: LinhaTexto[]): [string, boolean][] {
   const t = sa(textoDasLinhas(linhas).join(" "));
-  return /btg\s*pactual/.test(t) && /sumario/.test(t) && /saldo bruto/.test(t) && /conta investimento\s+\d/.test(t) && /periodo de \d{2}\/\d{2}\/\d{2}/.test(t);
+  return MARCAS_BR.map(([nome, re]) => [nome, re.test(t)]);
+}
+
+export function ehExtratoBtgBrasil(linhas: LinhaTexto[]): boolean {
+  return marcasBtgBrasil(linhas).every(([, ok]) => ok);
 }
 
 type TipoSecao =

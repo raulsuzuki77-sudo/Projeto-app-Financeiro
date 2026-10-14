@@ -77,6 +77,8 @@ export interface ContextoDiagnostico {
   /** Erro devolvido pela leitura do extrato (reconhecimento ou interpretacao), se houve. */
   erroLeitura: string | null;
   avisos: string[];
+  /** Marcas de cada leitor encontradas ou nao no texto (ver `explicarDeteccao`). */
+  deteccao?: string[];
   agora: Date;
 }
 
@@ -95,6 +97,7 @@ export function textoDiagnostico(d: DiagnosticoLeitura, ctx: ContextoDiagnostico
   ];
   if (d.erro) partes.push(`Erro ao ler o PDF: ${d.erro}`);
   if (ctx.erroLeitura) partes.push(`Erro da interpretação: ${ctx.erroLeitura}`);
+  if (ctx.deteccao?.length) partes.push(`Detecção: ${ctx.deteccao.join(" | ")}`);
   if (ctx.avisos.length) partes.push(`Avisos: ${ctx.avisos.join(" | ")}`);
   const substituicao = d.linhas.join("\n").match(/�/g)?.length ?? 0;
   if (substituicao > 0) partes.push(`Caracteres de substituição (U+FFFD) nas linhas mostradas: ${substituicao}`);

@@ -62,6 +62,8 @@ export interface ItemCarteira {
   /** valor = quantidade x preco x fator (titulos cotados por 100 de face: 0,01). */
   fator_preco: number;
   saldo_original_centavos: number;
+  /** Custo total informado pelo extrato (conta estrangeira), na moeda do ativo; null = nao informado. */
+  custo_total_original_centavos: number | null;
   /** Em reais; null sem taxa de cambio (fica fora dos totais). */
   saldo_centavos: number | null;
   /** Saldo bruto - quantidade x preco medio, na moeda do ativo; null sem preco medio (nunca zero por falta de dado). */
@@ -227,6 +229,7 @@ function itemDe(p: PosicaoPatrimonio, cadastro: ReturnType<typeof mapaCadastro>,
     preco_medio_origem,
     fator_preco: fator,
     saldo_original_centavos: p.valor_original_centavos,
+    custo_total_original_centavos: p.custo_total_centavos,
     saldo_centavos: p.valor_centavos,
     resultado_original_centavos: resultado_original,
     resultado_pct,

@@ -1,14 +1,14 @@
 import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { ROTULO_CLASSE } from "../../../core/src/index";
+import { novoDiagnostico, ROTULO_CLASSE, type DiagnosticoLeitura } from "../../../core/src/index";
 import { useTema } from "./tema";
 import { useToast } from "./toast";
 import { Aviso, Botao, Campo, Cartao, Texto } from "./ui";
 import type { DadosLiberdade } from "../lib/api";
 import { api } from "../lib/api";
 import { dataBR, formatarBRL } from "../lib/format";
-import { ErroPdfProtegido, formatarMoeda, lerArquivoDeExtrato, lerTaxaCambio, textoTaxa, type LeituraDoArquivo } from "../lib/investimentos";
+import { copiarTexto, diagnosticoDaLeitura, ErroPdfProtegido, formatarMoeda, formatarPreco, formatarQuantidade, lerArquivoDeExtrato, lerTaxaCambio, textoTaxa, type LeituraDoArquivo } from "../lib/investimentos";
 
 type Arquivo = { uri: string; nome: string };
 
@@ -37,6 +37,9 @@ export function LiberdadeImportar({ extratos, cambios, aoSalvar }: { extratos: D
   const [erro, setErro] = useState<string | null>(null);
   const [taxa, setTaxa] = useState("");
   const [verPosicoes, setVerPosicoes] = useState(false);
+  // diagnostico da ultima tentativa de leitura (para "Copiar diagnostico" quando o PDF nao e reconhecido ou a leitura falha)
+  const [diag, setDiag] = useState<DiagnosticoLeitura | null>(null);
+  const [ultima, setUltima] = useState<LeituraDoArquivo | null>(null);
 
   const extrato = leitura && leitura.resultado.ok ? leitura.resultado.extrato : null;
   const mesDoExtrato = extrato ? extrato.periodo_fim.slice(0, 7) : "";
@@ -49,14 +52,20 @@ export function LiberdadeImportar({ extratos, cambios, aoSalvar }: { extratos: D
     setErro(null);
     setTaxa("");
     setVerPosicoes(false);
+    setDiag(null);
+    setUltima(null);
   }
 
   async function ler(a: Arquivo, s: string | null) {
     setLendo(true);
     setErro(null);
     setLeitura(null);
+    setUltima(null);
+    const d = novoDiagnostico();
+    setDiag(d);
     try {
-      const r = await lerArquivoDeExtrato(a.uri, s);
+      const r = await lerArquivoDeExtrato(a.uri, s, d);
+      setUltima(r);
       setPedirSenha(null);
       if (!r.resultado.ok) {
         setErro(r.resultado.erro);
@@ -109,6 +118,19 @@ export function LiberdadeImportar({ extratos, cambios, aoSalvar }: { extratos: D
     }
   }
 
+  async function copiarDiagnostico() {
+    if (!diag) return;
+    try {
+      const como = await copiarTexto(diagnosticoDaLeitura(ultima, diag, erro));
+      toast({ texto: como === "copiado" ? "Diagnóstico copiado. Cole na conversa com o desenvolvedor." : "Na folha que abriu, escolha Copiar e cole na conversa com o desenvolvedor." });
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível copiar o diagnóstico.");
+    }
+  }
+
+  // oferecido quando o PDF nao foi reconhecido, a leitura falhou ou a soma nao confere
+  const oferecerDiagnostico = !!diag && !lendo && !pedirSenha && (!!erro || (!!ultima && (!ultima.resultado.ok || ultima.resultado.extrato.conferencia.confere !== true)));
+
   const substitui = !!extrato && extratos.some((x) => x.instituicao === extrato.instituicao && x.conta === extrato.conta && x.moeda === extrato.moeda && x.periodo_fim.slice(0, 7) === mesDoExtrato);
   const c = extrato?.conferencia;
 
@@ -130,6 +152,12 @@ export function LiberdadeImportar({ extratos, cambios, aoSalvar }: { extratos: D
       ) : null}
 
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
+      {oferecerDiagnostico ? (
+        <View style={{ gap: 6 }}>
+          <Botao rotulo="Copiar diagnóstico" icone="importar" secundario pequeno onPress={copiarDiagnostico} />
+          <Texto suave pequeno>Copia o caminho de leitura usado e as primeiras linhas lidas do PDF, com CPF, conta, nome e endereço ocultados (confira antes de enviar). No iPhone, abre a folha de compartilhamento: escolha Copiar.</Texto>
+        </View>
+      ) : null}
 
       {extrato && leitura && c ? (
         <View style={{ gap: 12 }}>
@@ -168,15 +196,25 @@ export function LiberdadeImportar({ extratos, cambios, aoSalvar }: { extratos: D
           <Botao rotulo={verPosicoes ? "Ocultar posições lidas" : "Ver posições lidas"} pequeno secundario onPress={() => setVerPosicoes(!verPosicoes)} />
           {verPosicoes ? (
             <View style={{ gap: 4 }}>
-              {extrato.posicoes.map((p, i) => (
-                <View key={i} accessible accessibilityLabel={`${p.ativo}: ${formatarMoeda(p.valor_centavos, extrato.moeda, formatarBRL)}`} style={{ flexDirection: "row", gap: 8, justifyContent: "space-between" }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: t.texto, fontSize: 13 }}>{p.ativo}</Text>
-                    <Text style={{ color: t.suave, fontSize: 11 }}>{ROTULO_CLASSE[p.classe_ativo]}{p.codigo ? ` · ${p.codigo}` : ""}{p.quantidade !== null ? ` · ${String(p.quantidade).replace(".", ",")} un.` : ""}</Text>
+              {extrato.posicoes.map((p, i) => {
+                const detalhes = [
+                  p.especie ?? ROTULO_CLASSE[p.classe_ativo],
+                  p.codigo && p.classe_ativo !== "previdencia" ? p.codigo : null,
+                  p.quantidade !== null ? `${formatarQuantidade(p.quantidade)} un.` : null,
+                  p.preco_fechamento != null ? `preço ${formatarPreco(p.preco_fechamento, extrato.moeda)}` : null,
+                  p.classe_ativo !== "caixa" && p.classe_ativo !== "transito" && p.classe_ativo !== "previdencia" ? `PM ${p.preco_medio == null ? "não informado" : formatarPreco(p.preco_medio, extrato.moeda)}` : null,
+                  p.detalhe?.setor ? `setor ${p.detalhe.setor}` : null,
+                ].filter(Boolean).join(" · ");
+                return (
+                  <View key={i} accessible accessibilityLabel={`${p.ativo}: ${formatarMoeda(p.valor_centavos, extrato.moeda, formatarBRL)}. ${detalhes}`} style={{ flexDirection: "row", gap: 8, justifyContent: "space-between" }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: t.texto, fontSize: 13 }}>{p.ativo}</Text>
+                      <Text style={{ color: t.suave, fontSize: 11 }}>{detalhes}</Text>
+                    </View>
+                    <Text style={{ color: t.texto, fontSize: 13, fontWeight: "600" }}>{formatarMoeda(p.valor_centavos, extrato.moeda, formatarBRL)}</Text>
                   </View>
-                  <Text style={{ color: t.texto, fontSize: 13, fontWeight: "600" }}>{formatarMoeda(p.valor_centavos, extrato.moeda, formatarBRL)}</Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ) : null}
 
