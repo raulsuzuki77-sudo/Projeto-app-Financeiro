@@ -34,7 +34,7 @@ function nomeSugerido(tipo: TipoEvento, inicio: string): string {
 
 /** Campos de um evento (nome, tipo e período), usados para criar e para editar. Erros do núcleo viram Aviso. */
 export function FormularioEvento({ inicial, rotuloBotao, onEnviar, onCancelar, ajuda }: { inicial: DadosFormularioEvento; rotuloBotao: string; onEnviar: (e: EventoParaSalvar) => Promise<void>; onCancelar?: () => void; ajuda?: ReactNode }) {
-  const [nome, setNome] = useState(inicial.nome);
+  const [nome, setNome] = useState(inicial.nome || nomeSugerido(inicial.tipo, inicial.inicio));
   const [tipo, setTipo] = useState<TipoEvento>(inicial.tipo);
   const [inicio, setInicio] = useState(inicial.inicio);
   const [fim, setFim] = useState(inicial.fim);

@@ -193,15 +193,19 @@ function mesesAnteriores(mes: string, n: number): string[] {
 }
 
 /**
- * Sugestão de orçamento: média dos `n` meses anteriores a `mes`, por categoria (arredondada a R$ 10), com a receita média.
+ * Sugestão de orçamento: média dos até `n` meses anteriores a `mes` que tenham lançamentos, por categoria (arredondada a R$ 10), com a receita média.
  * Só sugere; o usuário decide se grava (como padrão de todos os meses ou só para um mês).
  */
 export function sugerirOrcamentoPelaMedia(db: Db, usuarioId: string, mes: string, n = 3): { item: string; rotulo: string; valor_centavos: number }[] {
-  const meses = mesesAnteriores(mes, n);
+  // Só entram na média os meses que têm lançamentos: dividir por meses vazios subestimaria o gasto típico.
+  const comDados = mesesAnteriores(mes, n).filter((m) => (db.prepare("SELECT COUNT(*) c FROM lancamento WHERE usuario_id = ? AND status != 'cancelado' AND substr(data_local,1,7) = ?").get(usuarioId, m) as { c: number }).c > 0);
+  const meses = comDados;
+  if (meses.length === 0) return [];
+  const divisor = meses.length;
   const soma = new Map<string, number>();
   for (const m of meses) for (const [cat, r] of realizadoPorCategoria(db, usuarioId, m)) soma.set(cat, (soma.get(cat) ?? 0) + r.valor);
   const classes = mapaDeClasses(db, usuarioId);
-  const arred = (v: number) => Math.round(v / n / 1000) * 1000;
+  const arred = (v: number) => Math.round(v / divisor / 1000) * 1000;
   const itens = [...soma.entries()]
     .filter(([cat, v]) => v > 0 && cat !== "nao_classificado" && (classes.get(cat) ?? "x") !== null)
     .map(([cat, v]) => ({ item: cat, rotulo: rotuloCategoria(cat), valor_centavos: arred(v) }))

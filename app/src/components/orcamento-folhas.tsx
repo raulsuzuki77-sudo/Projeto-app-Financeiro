@@ -280,7 +280,8 @@ function ConteudoSugestao({ mes, sugestoes, atuais, onConcluir }: { mes: string;
   return (
     <>
       <Texto suave pequeno>Cada valor é a soma dos gastos dos 3 meses anteriores dividida por 3, arredondada para R$ 10. Meses sem lançamentos contam como zero. Revise, ajuste e escolha onde gravar; nada é gravado antes da sua confirmação.</Texto>
-      <Segmentado rotulo="Onde gravar" valor={escopo} onChange={(v) => { setConfirmando(false); setEscopo(v); }} opcoes={[{ id: "padrao", rotulo: "Padrão de todos os meses" }, { id: "mes", rotulo: "Só neste mês" }]} />
+      <Segmentado rotulo="Onde gravar" valor={escopo} onChange={(v) => { setConfirmando(false); setEscopo(v); }} opcoes={[{ id: "padrao", rotulo: "Todos os meses" }, { id: "mes", rotulo: "Só este mês" }]} />
+      <Texto pequeno forte>{`Gravar como: ${alvoTexto}`}</Texto>
       {linhas.map((l) => {
         const a = atuais.get(l.item);
         return (

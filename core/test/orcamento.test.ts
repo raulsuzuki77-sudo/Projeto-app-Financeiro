@@ -135,9 +135,9 @@ test("orcamento: planejado x realizado por classe, estorno abate, aporte liquido
   gasto(db, "2026-09-12", 100000, "Aplicacao RDB", { categoria: "investimento" });
   gasto(db, "2026-09-13", 30000, "Resgate RDB", { categoria: "resgate_investimento", tipo: "receita" });
   assert.equal(painelOrcamento(db, U, "2026-09").classes.find((c) => c.id === "liberdade")!.realizado_centavos, 150000 + 70000);
-  // sugestao pela media dos tres meses anteriores a outubro (so setembro tem dados): valor/3 arredondado a R$ 10
+  // sugestao pela media dos meses anteriores a outubro que tem dados (so setembro): sem dividir por meses vazios
   const sug = sugerirOrcamentoPelaMedia(db, U, "2026-10");
-  assert.equal(sug.find((s) => s.item === "moradia")!.valor_centavos, Math.round(230000 / 3 / 1000) * 1000);
+  assert.equal(sug.find((s) => s.item === "moradia")!.valor_centavos, 230000);
   assert.ok(sug.some((s) => s.item === ITEM_RECEITA));
   // copiar de um mes para outro
   assert.ok(copiarOrcamento(db, U, "2026-09", "2026-11") >= 4);
