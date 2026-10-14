@@ -235,6 +235,45 @@ export function prepararBanco(db: Db): void {
   if (!col("lancamento").includes("motivo_revisao")) db.exec("ALTER TABLE lancamento ADD COLUMN motivo_revisao TEXT");
   if (!col("lancamento").includes("evento_id")) db.exec("ALTER TABLE lancamento ADD COLUMN evento_id INTEGER REFERENCES evento(id)");
   repararCategoriasIncoerentes(db);
+  repararSemCategoriaConfirmada(db);
+  migrarCaixinhasParaMeta(db);
+}
+
+/**
+ * Versoes anteriores permitiam confirmar (ou salvar uma edicao de) lancamento sem categoria; ele sumia da revisao, mas continuava
+ * em "Sem categoria" nos totais. Todos voltam a pendente, com auditoria. Idempotente.
+ */
+export function repararSemCategoriaConfirmada(db: Db): number {
+  const cond = "status = 'confirmado' AND categoria = 'nao_classificado'";
+  const n = (db.prepare(`SELECT COUNT(*) c FROM lancamento WHERE ${cond}`).get() as { c: number }).c;
+  if (n === 0) return 0;
+  const agora = new Date().toISOString();
+  db.prepare(`INSERT INTO auditoria (lancamento_id, campo, valor_antigo, valor_novo, quando) SELECT id, 'status', 'confirmado', 'pendente', ? FROM lancamento WHERE ${cond}`).run(agora);
+  db.prepare(`UPDATE lancamento SET status = 'pendente', confianca = 0, motivo_revisao = 'sem categoria: escolha uma categoria', atualizado_em = ? WHERE ${cond}`).run(agora);
+  return n;
+}
+
+/**
+ * Aplicacao e resgate de RDB sao as caixinhas de provisao (classe Meta), nao investimento da Liberdade financeira. Lancamentos e
+ * regras aprendidas das versoes anteriores, que os tinham como investimento, passam para as categorias novas (com auditoria). Idempotente.
+ */
+export function migrarCaixinhasParaMeta(db: Db): number {
+  const agora = new Date().toISOString();
+  let n = 0;
+  for (const [norm, de, para, natureza] of [
+    ["aplicacao rdb", "investimento", "provisao_meta", "investimento"],
+    ["resgate rdb", "resgate_investimento", "resgate_provisao", "transferencia"],
+  ] as const) {
+    const cond = "estabelecimento_norm = ? AND categoria = ?";
+    const afetados = (db.prepare(`SELECT COUNT(*) c FROM lancamento WHERE ${cond}`).get(norm, de) as { c: number }).c;
+    if (afetados > 0) {
+      db.prepare(`INSERT INTO auditoria (lancamento_id, campo, valor_antigo, valor_novo, quando) SELECT id, 'categoria', categoria, ?, ? FROM lancamento WHERE ${cond}`).run(para, agora, norm, de);
+      db.prepare(`UPDATE lancamento SET categoria = ?, natureza = ?, atualizado_em = ? WHERE ${cond}`).run(para, natureza, agora, norm, de);
+      n += afetados;
+    }
+    db.prepare("UPDATE regra_classificacao SET categoria = ?, natureza = ? WHERE padrao_norm = ? AND categoria = ?").run(para, natureza, norm, de);
+  }
+  return n;
 }
 
 /**
@@ -245,7 +284,7 @@ export function prepararBanco(db: Db): void {
 export function repararCategoriasIncoerentes(db: Db): number {
   const agora = new Date().toISOString();
   const condSaida = "tipo IN ('despesa','investimento') AND categoria LIKE 'receita%'";
-  const condEntrada = "tipo = 'receita' AND natureza != 'estorno' AND categoria NOT LIKE 'receita%' AND categoria NOT IN ('transferencia','resgate_investimento','nao_classificado')";
+  const condEntrada = "tipo = 'receita' AND natureza != 'estorno' AND categoria NOT LIKE 'receita%' AND categoria NOT IN ('transferencia','resgate_investimento','resgate_provisao','nao_classificado')";
   let n = 0;
   for (const [cond, motivo, novaCat] of [
     [condSaida, "categoria de receita em uma saida: reclassifique", "nao_classificado"],

@@ -13,3 +13,6 @@ dados-reais/
 !backend/test/fixtures/*.ofx
 !.env.example
 !backend/.env.example
+
+# Worktrees temporarios dos agentes
+.claude/worktrees/

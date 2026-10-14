@@ -8,6 +8,10 @@ import { dataValida, paraInstanteUTC, somarDias, somarMeses } from "../parsing/t
 import { elegivelParaEvento, eventoDaData } from "../eventos/eventos";
 import { mesmoCompromisso } from "../recorrencias/casamento";
 
+/** Categoria dos lancamentos ainda nao classificados. */
+export const SEM_CATEGORIA = "nao_classificado";
+export const MOTIVO_SEM_CATEGORIA = "sem categoria: escolha uma categoria";
+
 export type ResultadoRegistro =
   | { resultado: "criado"; lancamento: Lancamento }
   | { resultado: "ja_processado"; lancamento_id: number }
@@ -146,7 +150,8 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
     // Estorno entra como entrada que abate a despesa da propria categoria; os demais tem o tipo ajustado a natureza (transferencia, aporte).
     const natureza: Natureza = n.estorno ? "estorno" : n.parcela_total && n.parcela_total > 1 && cls.natureza === "eventual" ? "parcelado" : cls.natureza;
     const tipoFinal = n.estorno ? n.tipo : tipoCoerente(n.tipo, natureza);
-    const status: Status = cls.confianca >= LIMIAR_CONFIANCA && (definida || candidatos.length === 0) && !n.alerta_revisao ? "confirmado" : "pendente";
+    // "Sem categoria" nunca entra como confirmado: sempre aguarda o usuario (evita valores sem categoria que a revisao nao mostra).
+    const status: Status = cls.confianca >= LIMIAR_CONFIANCA && (definida || candidatos.length === 0) && !n.alerta_revisao && cls.categoria !== SEM_CATEGORIA ? "confirmado" : "pendente";
     const info = db
       .prepare(
         `INSERT INTO lancamento (usuario_id, tipo, valor_centavos, descricao, estabelecimento_norm, categoria, natureza,
@@ -159,7 +164,7 @@ export function registrarLancamento(db: Db, n: NovoLancamento, opcoes: { ignorar
         n.forma_pagamento ?? null, n.cartao_id ?? null, n.conta_id ?? null, n.parcela_atual ?? null, n.parcela_total ?? null,
         paraInstanteUTC(n.data_local, n.hora_local ?? null), n.data_local, n.hora_local ?? null,
         n.precisao_horario, status, cls.confianca, hash, candidatos[0]?.id ?? null,
-        status === "pendente" ? motivoRevisao(n, cls.confianca, candidatos.length > 0) : null,
+        status === "pendente" ? motivoRevisao(n, cls.categoria === SEM_CATEGORIA ? Math.min(cls.confianca, 0) : cls.confianca, candidatos.length > 0) : null,
         // Gasto dentro do periodo de um evento (viagem, ferias): vinculado desde a importacao
         elegivelParaEvento(tipoFinal, natureza, cls.categoria) ? eventoDaData(db, n.usuario_id, n.data_local) : null, agora, agora,
       );
@@ -215,6 +220,9 @@ export function alterarLancamento(db: Db, id: number, usuarioId: string, altOrig
   // Ao trocar só a categoria, a natureza acompanha a categoria (ex.: "Assinaturas" -> assinatura), salvo parcelado.
   const alt: Alteracao = { ...altOriginal };
   if (alt.categoria && alt.natureza === undefined) alt.natureza = naturezaPara(alt.categoria, atual.natureza);
+  // Sem categoria nao pode ficar confirmado: o pedido de confirmar vira pendente.
+  const categoriaFinal = alt.categoria ?? atual.categoria;
+  if (alt.status === "confirmado" && categoriaFinal === SEM_CATEGORIA) alt.status = "pendente";
   const agora = agoraISO();
   const tx = db.transaction(() => {
     for (const campo of ["categoria", "natureza", "status"] as const) {
@@ -227,6 +235,7 @@ export function alterarLancamento(db: Db, id: number, usuarioId: string, altOrig
       }
     }
     if (alt.status === "confirmado") db.prepare("UPDATE lancamento SET motivo_revisao = NULL WHERE id = ?").run(id);
+    if (alt.status === "pendente" && categoriaFinal === SEM_CATEGORIA) db.prepare("UPDATE lancamento SET motivo_revisao = ? WHERE id = ?").run(MOTIVO_SEM_CATEGORIA, id);
     if (alt.categoria || alt.natureza) {
       const catFinal = alt.categoria ?? atual.categoria;
       const ajust = tipoENaturezaAposReclassificar(atual.tipo, catFinal, alt.natureza ?? atual.natureza);
@@ -241,7 +250,7 @@ export function alterarLancamento(db: Db, id: number, usuarioId: string, altOrig
       }
       // O estorno abate despesa, mas a regra aprendida vale para as compras futuras do estabelecimento: usa a natureza da categoria.
       aprenderRegra(db, usuarioId, atual.estabelecimento_norm, catFinal, natFinal === "estorno" ? naturezaPadraoDaCategoria(catFinal) ?? "eventual" : natFinal);
-      if (atual.status === "pendente" && !alt.status) {
+      if (atual.status === "pendente" && !alt.status && catFinal !== SEM_CATEGORIA) {
         db.prepare("UPDATE lancamento SET status = 'confirmado', confianca = 1, motivo_revisao = NULL, atualizado_em = ? WHERE id = ?").run(agora, id);
       }
     }
@@ -266,7 +275,7 @@ export interface EdicaoCompleta {
 
 /**
  * Edição completa de um lançamento pelo usuário. Valida cada campo, recalcula a chave de duplicidade,
- * registra auditoria campo a campo e deixa o lançamento confirmado (quem edita está revisando).
+ * registra auditoria campo a campo e deixa o lançamento confirmado (quem edita está revisando), exceto se continuar sem categoria.
  */
 export function editarLancamento(db: Db, id: number, usuarioId: string, e: EdicaoCompleta): Lancamento {
   const atual = obterLancamento(db, id);
@@ -308,12 +317,14 @@ export function editarLancamento(db: Db, id: number, usuarioId: string, e: Edica
     for (const campo of ["descricao", "valor_centavos", "data_local", "hora_local", "tipo", "categoria", "natureza", "forma_pagamento", "cartao_id"] as const) audit(campo, atual[campo], novo[campo]);
     db.prepare(
       `UPDATE lancamento SET descricao = ?, estabelecimento_norm = ?, valor_centavos = ?, data_local = ?, hora_local = ?, precisao_horario = ?, ocorrido_em = ?,
-         tipo = ?, categoria = ?, natureza = ?, forma_pagamento = ?, cartao_id = ?, hash_dedup = ?, status = 'confirmado', confianca = 1,
-         motivo_revisao = NULL, atualizado_em = ? WHERE id = ?`,
+         tipo = ?, categoria = ?, natureza = ?, forma_pagamento = ?, cartao_id = ?, hash_dedup = ?, status = ?, confianca = ?,
+         motivo_revisao = ?, atualizado_em = ? WHERE id = ?`,
     ).run(
       novo.descricao, descNorm, novo.valor_centavos, novo.data_local, novo.hora_local, precisao, paraInstanteUTC(novo.data_local, novo.hora_local),
       novo.tipo, novo.categoria, novo.natureza, novo.forma_pagamento, novo.cartao_id,
-      hashDe(usuarioId, novo.tipo, novo.valor_centavos, novo.data_local, novo.cartao_id ?? atual.conta_id ?? 0, descNorm, atual.parcela_atual ?? 0), agora, id,
+      hashDe(usuarioId, novo.tipo, novo.valor_centavos, novo.data_local, novo.cartao_id ?? atual.conta_id ?? 0, descNorm, atual.parcela_atual ?? 0),
+      // Quem edita esta revisando, mas sem categoria o lancamento continua pendente.
+      novo.categoria === SEM_CATEGORIA ? "pendente" : "confirmado", novo.categoria === SEM_CATEGORIA ? 0 : 1, novo.categoria === SEM_CATEGORIA ? MOTIVO_SEM_CATEGORIA : null, agora, id,
     );
     if (e.categoria !== undefined && novo.categoria !== "nao_classificado") {
       aprenderRegra(db, usuarioId, descNorm, novo.categoria, novo.natureza === "estorno" ? naturezaPadraoDaCategoria(novo.categoria) ?? "eventual" : novo.natureza);

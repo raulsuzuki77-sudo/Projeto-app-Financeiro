@@ -37,6 +37,29 @@ export function definirOrcamento(db: Db, usuarioId: string, mes: string, item: s
   db.prepare("INSERT INTO orcamento (usuario_id, mes, item, valor_centavos) VALUES (?,?,?,?) ON CONFLICT (usuario_id, mes, item) DO UPDATE SET valor_centavos = excluded.valor_centavos").run(usuarioId, mes, item, valorCentavos);
 }
 
+const ITEM_LIMITE = "__limite:";
+
+/** Define o limite máximo da classe como fração da receita (ex.: 0,3 = 30%). `null` volta ao padrão. */
+export function definirLimiteClasse(db: Db, usuarioId: string, classe: ClasseId, fracao: number | null): void {
+  if (!IDS_CLASSE.has(classe)) throw new Error("Classe inválida.");
+  if (fracao === null) {
+    removerOrcamento(db, usuarioId, PADRAO, ITEM_LIMITE + classe);
+    return;
+  }
+  if (!(fracao > 0 && fracao <= 1)) throw new Error("O limite deve ficar entre 0% e 100% da receita.");
+  definirOrcamento(db, usuarioId, PADRAO, ITEM_LIMITE + classe, Math.round(fracao * 10000));
+}
+
+function limitesDasClasses(db: Db, usuarioId: string): Map<ClasseId, { fracao: number; origem: "usuario" | "padrao" }> {
+  const m = new Map<ClasseId, { fracao: number; origem: "usuario" | "padrao" }>();
+  for (const [c, f] of Object.entries(LIMITES_PADRAO)) m.set(c as ClasseId, { fracao: f, origem: "padrao" });
+  for (const r of db.prepare("SELECT item, valor_centavos FROM orcamento WHERE usuario_id = ? AND mes = ? AND item LIKE ?").all(usuarioId, PADRAO, `${ITEM_LIMITE}%`) as { item: string; valor_centavos: number }[]) {
+    const c = r.item.slice(ITEM_LIMITE.length) as ClasseId;
+    if (IDS_CLASSE.has(c)) m.set(c, { fracao: r.valor_centavos / 10000, origem: "usuario" });
+  }
+  return m;
+}
+
 export function removerOrcamento(db: Db, usuarioId: string, mes: string, item: string): void {
   db.prepare("DELETE FROM orcamento WHERE usuario_id = ? AND mes = ? AND item = ?").run(usuarioId, mes, item);
 }
@@ -57,21 +80,32 @@ export function planoDoMes(db: Db, usuarioId: string, mes: string): Map<string, 
 
 /**
  * Realizado do mês por categoria. Gastos e aportes somam; estornos abatem; resgates de investimento abatem o aporte da categoria
- * "investimento" (aporte líquido), pois as caixinhas giram o mesmo dinheiro. Pendentes entram, mas são contados à parte.
+ * "investimento" (aporte líquido). As caixinhas (aplicação e resgate de RDB) formam a categoria "provisao_meta": o realizado é o
+ * que foi provisionado no mês, sem ficar negativo quando se resgata mais do que se aplica (o resgate é uso da provisão, e é
+ * informado à parte). Pendentes entram, mas são contados à parte.
  */
-function realizadoPorCategoria(db: Db, usuarioId: string, mes: string): Map<string, { valor: number; quantidade: number; pendentes: number }> {
+function realizadoPorCategoria(db: Db, usuarioId: string, mes: string): Map<string, { valor: number; quantidade: number; pendentes: number; aplicado?: number; resgatado?: number }> {
   const rows = db
     .prepare(
-      `SELECT CASE WHEN categoria = 'resgate_investimento' THEN 'investimento' ELSE categoria END cat,
+      `SELECT CASE WHEN categoria = 'resgate_investimento' THEN 'investimento' WHEN categoria = 'resgate_provisao' THEN 'provisao_meta' ELSE categoria END cat,
               SUM(CASE WHEN tipo IN ('despesa','investimento') THEN valor_centavos ELSE -valor_centavos END) valor,
+              SUM(CASE WHEN tipo IN ('despesa','investimento') THEN valor_centavos ELSE 0 END) aplicado,
+              SUM(CASE WHEN tipo IN ('despesa','investimento') THEN 0 ELSE valor_centavos END) resgatado,
               COUNT(*) quantidade, SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) pendentes
        FROM lancamento
        WHERE usuario_id = ? AND status != 'cancelado' AND substr(data_local,1,7) = ?
-         AND (tipo IN ('despesa','investimento') OR (tipo = 'receita' AND natureza = 'estorno') OR (tipo = 'transferencia' AND categoria = 'resgate_investimento'))
+         AND (tipo IN ('despesa','investimento') OR (tipo = 'receita' AND natureza = 'estorno') OR (tipo = 'transferencia' AND categoria IN ('resgate_investimento','resgate_provisao')))
        GROUP BY cat`,
     )
-    .all(usuarioId, mes) as { cat: string; valor: number; quantidade: number; pendentes: number }[];
-  return new Map(rows.map((r) => [r.cat, { valor: r.valor, quantidade: r.quantidade, pendentes: r.pendentes }]));
+    .all(usuarioId, mes) as { cat: string; valor: number; aplicado: number; resgatado: number; quantidade: number; pendentes: number }[];
+  return new Map(
+    rows.map((r) => [
+      r.cat,
+      r.cat === "provisao_meta"
+        ? { valor: Math.max(0, r.valor), quantidade: r.quantidade, pendentes: r.pendentes, aplicado: r.aplicado, resgatado: r.resgatado }
+        : { valor: r.valor, quantidade: r.quantidade, pendentes: r.pendentes },
+    ]),
+  );
 }
 
 export type Situacao = "ok" | "atencao" | "estourou" | "sem_plano";
@@ -92,6 +126,9 @@ export interface ItemOrcamento {
   quantidade: number;
   pendentes: number;
   situacao: Situacao;
+  /** Só nas caixinhas: quanto foi aplicado e quanto foi resgatado (usado) no mês. */
+  aplicado_centavos?: number;
+  resgatado_centavos?: number;
 }
 
 export interface ClasseOrcamento {
@@ -102,11 +139,31 @@ export interface ClasseOrcamento {
   realizado_centavos: number;
   situacao: Situacao;
   itens: ItemOrcamento[];
+  /** Participação do realizado na receita-base do mês (0,295 = 29,5%), como na planilha de acompanhamento; nulo sem receita-base. */
+  percentual_receita: number | null;
+  /** Participação do planejado na receita-base. */
+  percentual_planejado: number | null;
+  /** Limite máximo de participação definido pelo usuário (ou padrão), em fração da receita. */
+  limite_percentual: number | null;
+  limite_origem: "usuario" | "padrao" | null;
+  acima_do_limite: boolean;
+}
+
+/** Limites máximos padrão (fração da receita), tirados da planilha do usuário: custo fixo até 30%. O usuário pode trocar ou remover. */
+export const LIMITES_PADRAO: Partial<Record<ClasseId, number>> = { custo_fixo: 0.3 };
+
+/** Base dos percentuais: o que serve de 100% para as classes. */
+export interface BasePercentual {
+  centavos: number;
+  origem: "realizada" | "planejada" | "nenhuma";
+  /** Explica a conta, para o usuário conferir. */
+  descricao: string;
 }
 
 export interface PainelOrcamento {
   mes: string;
   receita: { planejada_centavos: number; realizada_centavos: number; origem_plano: "mes" | "padrao" | null };
+  base: BasePercentual;
   despesa: { planejada_centavos: number; realizada_centavos: number };
   superavit: { planejado_centavos: number; realizado_centavos: number };
   superavit_diario_planejado_centavos: number;
@@ -129,7 +186,7 @@ export function painelOrcamento(db: Db, usuarioId: string, mes: string): PainelO
   const classes = mapaDeClasses(db, usuarioId);
   const itensPorClasse = new Map<string, ItemOrcamento[]>();
 
-  const considerados = new Set<string>([...[...plano.keys()].filter((k) => k !== ITEM_RECEITA), ...real.keys()]);
+  const considerados = new Set<string>([...[...plano.keys()].filter((k) => !k.startsWith("__")), ...real.keys()]);
   for (const cat of considerados) {
     const classe = classes.get(cat) ?? null;
     // categorias sem classe (transferencias, receitas) nao entram; "sem categoria" e personalizadas aparecem em "sem_classe"
@@ -146,24 +203,44 @@ export function painelOrcamento(db: Db, usuarioId: string, mes: string): PainelO
       quantidade: r?.quantidade ?? 0,
       pendentes: r?.pendentes ?? 0,
       situacao: situacao(p?.valor ?? 0, r?.valor ?? 0),
+      ...(r?.aplicado !== undefined ? { aplicado_centavos: r.aplicado, resgatado_centavos: r.resgatado ?? 0 } : {}),
     };
-    if (item.planejado_centavos === 0 && item.realizado_centavos === 0) continue;
+    if (item.planejado_centavos === 0 && item.realizado_centavos === 0 && !item.aplicado_centavos && !item.resgatado_centavos) continue;
     (itensPorClasse.get(chave) ?? itensPorClasse.set(chave, []).get(chave)!).push(item);
   }
+
+  const limites = limitesDasClasses(db, usuarioId);
+  const recPlan = plano.get(ITEM_RECEITA);
+  // Base dos percentuais: receita de trabalho e outras receitas do mês. O "custo de vida" que vem de outra conta sua e as
+  // transferências não são renda nova; sem receita realizada, vale a receita planejada.
+  const baseRealizada = (db.prepare("SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE usuario_id = ? AND status != 'cancelado' AND tipo = 'receita' AND natureza != 'estorno' AND categoria NOT IN ('receita_custo_vida','transferencia','resgate_investimento','resgate_provisao') AND substr(data_local,1,7) = ?").get(usuarioId, mes) as { t: number }).t;
+  const base: BasePercentual =
+    baseRealizada > 0
+      ? { centavos: baseRealizada, origem: "realizada", descricao: "Receitas do mês (salário e outras), sem o custo de vida recebido de outra conta sua nem transferências." }
+      : recPlan && recPlan.valor > 0
+        ? { centavos: recPlan.valor, origem: "planejada", descricao: "Receita planejada do mês (ainda não há receita lançada)." }
+        : { centavos: 0, origem: "nenhuma", descricao: "Sem receita lançada nem planejada: os percentuais ficam em branco." };
+  const pct = (v: number) => (base.centavos > 0 ? v / base.centavos : null);
 
   const lista: ClasseOrcamento[] = [...CLASSES.map((c) => ({ id: c.id as ClasseOrcamento["id"], rotulo: c.rotulo, exemplos: c.exemplos })), { id: "sem_classe" as const, rotulo: "Sem classe", exemplos: "Gastos sem categoria ou de categoria personalizada" }]
     .map((c) => {
       const itens = (itensPorClasse.get(c.id) ?? []).sort((a, b) => b.realizado_centavos - a.realizado_centavos || b.planejado_centavos - a.planejado_centavos);
       const planejado = itens.reduce((s, i) => s + i.planejado_centavos, 0);
       const realizado = itens.reduce((s, i) => s + i.realizado_centavos, 0);
-      return { ...c, planejado_centavos: planejado, realizado_centavos: realizado, situacao: situacao(planejado, realizado), itens };
+      const lim = c.id === "sem_classe" ? undefined : limites.get(c.id as ClasseId);
+      const percentual = pct(realizado);
+      return {
+        ...c, planejado_centavos: planejado, realizado_centavos: realizado, situacao: situacao(planejado, realizado), itens,
+        percentual_receita: percentual, percentual_planejado: pct(planejado),
+        limite_percentual: lim?.fracao ?? null, limite_origem: lim?.origem ?? null,
+        acima_do_limite: lim !== undefined && percentual !== null && percentual > lim.fracao,
+      };
     })
     .filter((c) => c.itens.length > 0 || c.id !== "sem_classe");
 
   const despPlan = lista.reduce((s, c) => s + c.planejado_centavos, 0);
   const despReal = lista.reduce((s, c) => s + c.realizado_centavos, 0);
   const receitaReal = (db.prepare("SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE usuario_id = ? AND status != 'cancelado' AND tipo = 'receita' AND natureza != 'estorno' AND substr(data_local,1,7) = ?").get(usuarioId, mes) as { t: number }).t;
-  const recPlan = plano.get(ITEM_RECEITA);
   const alertas: PainelOrcamento["alertas"] = [];
   for (const c of lista) for (const i of c.itens) if (i.situacao !== "ok") alertas.push({ tipo: i.situacao, item: i.categoria, rotulo: i.rotulo, planejado_centavos: i.planejado_centavos, realizado_centavos: i.realizado_centavos });
   const ordem = { estourou: 0, atencao: 1, sem_plano: 2 } as const;
@@ -172,6 +249,7 @@ export function painelOrcamento(db: Db, usuarioId: string, mes: string): PainelO
   return {
     mes,
     receita: { planejada_centavos: recPlan?.valor ?? 0, realizada_centavos: receitaReal, origem_plano: recPlan?.origem ?? null },
+    base,
     despesa: { planejada_centavos: despPlan, realizada_centavos: despReal },
     superavit: { planejado_centavos: supPlan, realizado_centavos: receitaReal - despReal },
     superavit_diario_planejado_centavos: Math.round(supPlan / diasDoMes(mes)),
@@ -179,6 +257,30 @@ export function painelOrcamento(db: Db, usuarioId: string, mes: string): PainelO
     categorias: CATEGORIAS.map((c) => ({ id: c.id, rotulo: c.rotulo, classe: classes.get(c.id) ?? null })).filter((c): c is { id: string; rotulo: string; classe: ClasseId } => c.classe !== null),
     alertas,
     pendentes: [...real.values()].reduce((s, r) => s + r.pendentes, 0),
+  };
+}
+
+export interface EvolucaoDeClasses {
+  meses: string[];
+  /** Para cada classe, a participação do realizado na receita-base de cada mês (nulo sem receita) e o valor realizado. */
+  classes: { id: string; rotulo: string; percentuais: (number | null)[]; valores_centavos: number[]; limite_percentual: number | null }[];
+}
+
+/** Participação de cada classe na receita, mês a mês, como as colunas da planilha de acompanhamento (últimos `n` meses até `mesFim`). */
+export function evolucaoDeClasses(db: Db, usuarioId: string, mesFim: string, n = 6): EvolucaoDeClasses {
+  const meses = [...mesesAnteriores(mesFim, n - 1), mesFim];
+  const paineis = meses.map((m) => painelOrcamento(db, usuarioId, m));
+  const ids = [...CLASSES.map((c) => ({ id: c.id as string, rotulo: c.rotulo })), { id: "sem_classe", rotulo: "Sem classe" }];
+  return {
+    meses,
+    classes: ids
+      .map(({ id, rotulo }) => ({
+        id, rotulo,
+        percentuais: paineis.map((p) => p.classes.find((c) => c.id === id)?.percentual_receita ?? (p.base.centavos > 0 ? 0 : null)),
+        valores_centavos: paineis.map((p) => p.classes.find((c) => c.id === id)?.realizado_centavos ?? 0),
+        limite_percentual: paineis[paineis.length - 1]!.classes.find((c) => c.id === id)?.limite_percentual ?? null,
+      }))
+      .filter((c) => c.id !== "sem_classe" || c.valores_centavos.some((v) => v !== 0)),
   };
 }
 

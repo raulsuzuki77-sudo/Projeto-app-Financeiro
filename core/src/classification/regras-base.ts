@@ -9,7 +9,10 @@ export interface RegraBase {
 
 /** A ordem importa: a primeira regra que casar vence. Regras mais específicas vêm antes. */
 export const REGRAS_BASE: RegraBase[] = [
-  { termos: ["resgate rdb", "resgate cdb", "resgate"], categoria: "resgate_investimento", natureza: "transferencia" },
+  // Aplicacoes e resgates de RDB sao, em geral, as caixinhas do Nubank em que o usuario provisiona valores para metas (classe Meta).
+  { termos: ["resgate rdb"], categoria: "resgate_provisao", natureza: "transferencia" },
+  { termos: ["aplicacao rdb"], categoria: "provisao_meta", natureza: "investimento" },
+  { termos: ["resgate cdb", "resgate"], categoria: "resgate_investimento", natureza: "transferencia" },
   // Boleto da fatura de outro cartao: as compras vem da propria fatura; contar o boleto tambem duplicaria o gasto.
   { termos: ["nomad tecnologia"], categoria: "transferencia", natureza: "transferencia" },
   { termos: ["pagamento de fatura", "pagamento fatura", "pgto fatura", "pagto fatura", "pagamento recebido", "pag fatura"], categoria: "transferencia", natureza: "transferencia" },

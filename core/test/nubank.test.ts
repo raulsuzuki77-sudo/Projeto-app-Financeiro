@@ -95,7 +95,7 @@ test("aplicacao vira investimento, resgate e transferencia (nao e renda) e estor
   const r = resumoMensal(db, "u", "2026-08");
   assert.equal(r.investimentos_centavos, 126000, "somente a aplicacao conta como aporte");
   const resgate = db.prepare("SELECT tipo, categoria FROM lancamento WHERE descricao = 'Resgate RDB'").get() as { tipo: string; categoria: string };
-  assert.deepEqual(resgate, { tipo: "transferencia", categoria: "resgate_investimento" });
+  assert.deepEqual(resgate, { tipo: "transferencia", categoria: "resgate_provisao" }, "RDB e caixinha de provisao (classe Meta), nao investimento");
   // Pix de 50 enviado, estornado e reenviado: a despesa liquida e 50, e o estorno nao e renda
   const pix = db.prepare("SELECT SUM(CASE WHEN tipo='despesa' THEN valor_centavos ELSE 0 END) d, SUM(CASE WHEN natureza='estorno' THEN valor_centavos ELSE 0 END) e FROM lancamento WHERE descricao = 'Pix enviado: BELTRANO DE SOUSA'").get() as { d: number; e: number };
   assert.deepEqual(pix, { d: 10000, e: 5000 });

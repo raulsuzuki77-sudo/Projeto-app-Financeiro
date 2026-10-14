@@ -2,13 +2,13 @@ import type { Natureza } from "../domain/types";
 
 /** Classes do orçamento (segunda visão dos gastos, além da categoria): para onde o dinheiro vai, do ponto de vista do planejamento. */
 export const CLASSES = [
-  { id: "custo_fixo", rotulo: "Custo fixo", exemplos: "Aluguel, condomínio, contas da casa, feira, saúde, seguros, combustível" },
-  { id: "meta", rotulo: "Meta", exemplos: "Viagens de fim de ano, presentes, pontos e doações" },
-  { id: "prazeres", rotulo: "Prazeres", exemplos: "Bebidas, boteco, jantar fora, delivery, passeios" },
-  { id: "eventualidade", rotulo: "Eventualidade", exemplos: "Compras diversas, pequenos eletros, pets" },
-  { id: "liberdade", rotulo: "Liberdade financeira", exemplos: "Investimentos, previdência privada, parcela do apartamento" },
+  { id: "custo_fixo", rotulo: "Custo fixo", exemplos: "Aluguel, condomínio, seguros, água, luz, telefone, internet, plano de saúde, sindicato, feira, remédios, combustível" },
+  { id: "meta", rotulo: "Meta", exemplos: "Viagens de final de ano, presentes, pontos, doações e caixinhas de provisão" },
+  { id: "prazeres", rotulo: "Prazeres", exemplos: "Bebidas compradas, boteco, jantar fora, delivery, passeios" },
+  { id: "eventualidade", rotulo: "Eventualidade", exemplos: "Compras diversas (Amazon), pequenos eletros, gastos com os gatos" },
+  { id: "liberdade", rotulo: "Liberdade financeira", exemplos: "Investimentos (corretora), previdência privada, parcela do apartamento" },
   { id: "conforto", rotulo: "Conforto", exemplos: "Diarista, cabelo, roupas, aplicativos de transporte, academia" },
-  { id: "conhecimento", rotulo: "Conhecimento", exemplos: "Inteligência artificial, livros, audiolivros, cursos" },
+  { id: "conhecimento", rotulo: "Conhecimento", exemplos: "Inteligência artificial, livros, audiolivros, cursos, assessoria de investimento" },
 ] as const;
 export type ClasseId = (typeof CLASSES)[number]["id"];
 
@@ -60,7 +60,10 @@ export const CATEGORIAS: Categoria[] = [
   { id: "investimento", rotulo: "Investimento", grupo: "Finanças", natureza: "investimento", classe: "liberdade" },
   { id: "investimento_previdencia", rotulo: "Previdência privada", grupo: "Finanças", natureza: "investimento", classe: "liberdade" },
   { id: "investimento_apartamento", rotulo: "Parcela de apartamento", grupo: "Finanças", natureza: "investimento", classe: "liberdade" },
+  { id: "provisao_meta", rotulo: "Caixinhas (provisão de metas)", grupo: "Finanças", natureza: "investimento", classe: "meta" },
+  { id: "assessoria_investimento", rotulo: "Assessoria de investimento", grupo: "Finanças", natureza: "fixo", classe: "conhecimento" },
   { id: "resgate_investimento", rotulo: "Resgate de investimento", grupo: "Finanças", natureza: "transferencia", classe: null },
+  { id: "resgate_provisao", rotulo: "Resgate de caixinha (uso de provisão)", grupo: "Finanças", natureza: "transferencia", classe: null },
   { id: "transferencia", rotulo: "Transferência entre contas", grupo: "Finanças", natureza: "transferencia", classe: null },
   { id: "receita_trabalho", rotulo: "Salário e trabalho", grupo: "Receitas", natureza: "eventual", classe: null },
   { id: "receita_custo_vida", rotulo: "Custo de vida (recebido de outra conta sua)", grupo: "Receitas", natureza: "eventual", classe: null },

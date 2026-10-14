@@ -11,7 +11,7 @@ import { REGRAS_BASE } from "./regras-base";
 export function categoriaCompativel(tipo: Tipo, categoria: string): boolean {
   const ehReceita = categoria.startsWith("receita");
   if (tipo === "despesa" || tipo === "investimento") return !ehReceita;
-  if (tipo === "receita") return ehReceita || categoria === "transferencia" || categoria === "resgate_investimento" || categoria === "nao_classificado";
+  if (tipo === "receita") return ehReceita || categoria === "transferencia" || categoria === "resgate_investimento" || categoria === "resgate_provisao" || categoria === "nao_classificado";
   return true;
 }
 
@@ -242,7 +242,7 @@ export function tipoCoerente(tipo: Tipo, natureza: Natureza): Tipo {
 
 /** Categoria de gasto comum (não é receita, movimento entre contas nem aporte). */
 export function categoriaDeGasto(categoria: string): boolean {
-  if (categoria.startsWith("receita") || ["transferencia", "resgate_investimento", "nao_classificado"].includes(categoria)) return false;
+  if (categoria.startsWith("receita") || ["transferencia", "resgate_investimento", "resgate_provisao", "nao_classificado"].includes(categoria)) return false;
   const nat = naturezaPadraoDaCategoria(categoria);
   return nat !== "transferencia" && nat !== "investimento";
 }

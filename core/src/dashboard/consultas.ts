@@ -206,6 +206,22 @@ export function listarLancamentos(db: Db, usuarioId: string, filtro: FiltroLanca
 }
 
 
+/**
+ * Lançamentos que pedem revisão: pendentes até `ate` (parcelas futuras previstas só aparecem quando o mês chega) e, em qualquer
+ * data ou situação, os "sem categoria", que não podem ficar de fora da revisão porque contam nos totais.
+ */
+export function listarParaRevisao(db: Db, usuarioId: string, opcoes: { ate: string; ordem?: NonNullable<FiltroLancamentos["ordem"]>; limite?: number }) {
+  const lim = Math.min(Math.max(opcoes.limite ?? 300, 1), 2000);
+  const prevista = "(EXISTS (SELECT 1 FROM lancamento_origem o WHERE o.lancamento_id = lancamento.id AND o.origem = 'parcela_prevista') AND NOT EXISTS (SELECT 1 FROM lancamento_origem o2 WHERE o2.lancamento_id = lancamento.id AND o2.origem != 'parcela_prevista'))";
+  return db
+    .prepare(
+      `SELECT lancamento.*, ${prevista} AS prevista FROM lancamento
+       WHERE usuario_id = ? AND status != 'cancelado' AND ((status = 'pendente' AND data_local <= ?) OR categoria = 'nao_classificado')
+       ORDER BY ${ORDENS[opcoes.ordem ?? "data_desc"]} LIMIT ${lim}`,
+    )
+    .all(usuarioId, opcoes.ate);
+}
+
 export interface ParcelasDoMes {
   mes: string;
   total_centavos: number;
