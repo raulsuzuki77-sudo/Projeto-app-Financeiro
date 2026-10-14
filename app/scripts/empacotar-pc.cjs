@@ -40,10 +40,15 @@ fs.writeFileSync(
   `CONTROLE FINANCEIRO - VERSAO PARA COMPUTADOR (teste)
 
 Como abrir
-  macOS:   de duplo clique em "Abrir Controle Financeiro.command". Se o macOS bloquear (arquivo baixado), clique com o botao direito,
-           escolha Abrir e confirme.
-  Windows: de duplo clique em "Abrir Controle Financeiro.bat".
-  Qualquer sistema com Node.js: no terminal, nesta pasta, rode: node servir.cjs
+  Qualquer sistema com Node.js (o jeito mais simples e que nao esbarra em bloqueios): abra o Terminal, entre na pasta e rode
+      cd caminho/da/pasta/controle-financeiro-pc
+      node servir.cjs
+  macOS, pelo atalho: o macOS bloqueia arquivos baixados que nao sao assinados pela Apple ("A Apple nao pode verificar..."). Duas saidas:
+      1) toque em OK, abra Ajustes do Sistema > Privacidade e Seguranca, role ate a mensagem sobre "Abrir Controle Financeiro.command"
+         e toque em "Abrir Mesmo Assim" (pede a senha do Mac); ou
+      2) no Terminal, remova a marca de quarentena da pasta e abra de novo:
+         xattr -dr com.apple.quarantine caminho/da/pasta/controle-financeiro-pc
+  Windows: de duplo clique em "Abrir Controle Financeiro.bat" (se o SmartScreen avisar, Mais informacoes > Executar assim mesmo).
 Requer o Node.js (versao LTS, https://nodejs.org). O navegador abre sozinho em http://localhost:8123 .
 Deixe a janela do terminal aberta enquanto usa o aplicativo.
 

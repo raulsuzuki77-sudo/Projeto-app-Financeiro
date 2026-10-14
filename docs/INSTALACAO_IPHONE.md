@@ -78,7 +78,7 @@ Pelo que sei, o app instalado com Apple ID gratuito deixa de abrir após 7 dias.
 Há uma versão do mesmo aplicativo que roda no navegador do computador, com banco próprio e vazio (nada é enviado a servidores). Serve para importar extratos, treinar a classificação e avaliar telas sem Xcode nem iPhone.
 
 - Gerar o pacote (precisa do projeto clonado e do Node.js): na pasta `app`, `npm install` e depois `npm run empacotar-pc`. Sai um zip em `app/dist-pc/controle-financeiro-pc.zip`.
-- Abrir: descompacte e dê duplo clique em "Abrir Controle Financeiro.command" (macOS; se o sistema bloquear, clique com o botão direito e escolha Abrir) ou ".bat" (Windows). O navegador abre em `http://localhost:8123`. Mantenha a janela do terminal aberta.
+- Abrir (o jeito mais simples): no Terminal, `cd` até a pasta descompactada e rode `node servir.cjs`. O navegador abre em `http://localhost:8123`; mantenha a janela do terminal aberta. Pelo atalho: no Windows, "Abrir Controle Financeiro.bat"; no macOS, o "Abrir Controle Financeiro.command" é bloqueado por ser baixado e não assinado ("A Apple não pôde verificar..."): toque em OK, vá em Ajustes do Sistema > Privacidade e Segurança e use "Abrir Mesmo Assim", ou remova a quarentena com `xattr -dr com.apple.quarantine <pasta>`.
 - Dados: ficam só neste navegador e neste endereço. Limpar os dados do site apaga tudo; exporte um backup cifrado antes (Mais opções, Backup e segurança). O backup feito aqui restaura no iPhone e vice-versa.
 - Modo de desenvolvimento (para quem altera o código): `npm run web` na pasta `app`.
 - Simulador do iPhone (já vem com o Xcode): `npx expo run:ios` na pasta `app`, com o código nativo real, exceto Face ID e câmera.
