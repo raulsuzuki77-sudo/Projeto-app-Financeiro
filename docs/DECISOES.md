@@ -176,3 +176,25 @@ Verificado no Chromium com a fatura de exemplo (PDF de imagem, 3 páginas): 38 i
 
 No iPhone, o PDF com senha usa o desbloqueio do PDFKit e a senha por cartão fica no Chaveiro. NÃO verificado em aparelho: a compilação do Swift, o fluxo de senha e a leitura real.
 
+## 15. Orçamento, classes, eventos e recorrentes (14/10/2026)
+
+Origem: planilha de orçamento do usuário ("Classificação dos gastos", "Orçamento ATUAL", "Manejo de faturas", "Aluguéis"). A planilha não entra no repositório; o que foi aproveitado é a estrutura.
+
+Classes do orçamento (segunda visão dos gastos, além da categoria): Custo fixo, Meta, Prazeres, Eventualidade, Liberdade financeira, Conforto e Conhecimento. O mapeamento categoria para classe segue os exemplos e as fórmulas da planilha (por exemplo: feira, remédio, gasolina, seguros, plano de saúde e sindicato em Custo fixo; Livelo, doações e viagens em Meta; IA e Audible em Conhecimento; previdência, apartamento e aportes em Liberdade financeira) e é uma inferência: o usuário pode mudar a classe de qualquer categoria (tela Orçamento) e o padrão fica em `core/src/classification/categorias.ts`.
+
+Hierarquia: toda categoria pertence a um grupo (Alimentação contém Supermercado, Delivery, Bares...). As telas mostram o grupo em destaque e as categorias recuadas; o Início alterna a visão do gráfico entre categoria, grupo e classe e permite trocar o mês.
+
+Regras indicadas pelo usuário: GETWAY é parcela de apartamento (categoria própria, tratada como investimento, classe Liberdade financeira); Itoko Tachi é restaurante; Zero Grau é depósito de bebidas; S2P*2FUNAPE é curso de idiomas. Dos valores da planilha foi deduzido, sem confirmação do usuário: a Mútua dos profissionais da engenharia é plano de saúde e coparticipação (os valores coincidem com a linha de coparticipação), o sindicato é a linha "Sindicato TCE-GO" e ICATU e BTG Previdência compõem a "Previdência complementar". Categoria nova "Corte de cabelo" dentro de Saúde.
+
+Eventos (viagem a serviço, férias, outro): entidade própria com período; é uma segunda classificação do gasto, sem duplicar totais (o gasto conta na categoria e, separadamente, no evento). Ao criar o evento, os gastos do período são vinculados (exceto contas fixas, assinaturas, parcelas, aportes, transferências e estornos); gastos importados depois dentro do período já nascem vinculados; o usuário desvincula caso a caso. A tela pergunta o período quando há gasto de viagem sem evento, ao importar arquivos (com o intervalo de datas lido) e ao classificar um gasto como viagem. Limite de 120 dias por evento.
+
+Recorrentes: (a) detecção: mesmo favorecido (chave do estabelecimento), valores até 15% de diferença, no máximo duas ocorrências por mês, dois meses ou mais; aplicações genéricas em caixinha e pequenos gastos de valor oscilante não entram; (b) cadastro: antes de salvar, mostra em quais meses os lançamentos importados já contemplam o compromisso (mesmo valor com diferença de até 1%, ou mesmo favorecido com valor até 30% diferente); (c) geração: meses já contemplados não geram lançamento, e o lançamento importado passa a ser a ocorrência do mês; quando o extrato chega depois da previsão, o lançamento real substitui a previsão (inclusive o valor, nas contas variáveis), contando uma só vez.
+
+Orçamento: valor planejado por categoria e por mês, com valor padrão para todos os meses; realizado vem dos lançamentos (gastos e aportes somam; estornos abatem; resgates abatem o aporte da categoria Investimento, pois as caixinhas giram o mesmo dinheiro, de modo que o aporte líquido pode ficar negativo em um mês de resgates). Superávit = receita menos despesas e aportes. Alertas: acima do planejado, a partir de 80% e gasto sem valor planejado. Sugestão de preenchimento pela média dos três meses anteriores (nunca grava sem confirmação). Metas e orçamento: compara o planejado em Liberdade financeira com a soma dos aportes mensais que as metas ativas exigem (simulação educacional com premissas editáveis, sem recomendação de investimento).
+
+Pix entre as próprias contas: a chave agora inclui a direção (enviado ou recebido), então o usuário pode classificar de modos diferentes o que envia e o que recebe de si mesmo (por exemplo, o recebido de outra conta como "Custo de vida"). Pix enviado a uma corretora (BTG, XP, Rico, Genial, Warren, Clear, Órama, Toro, Ágora, Avenue) é tratado como aporte. Decisão pendente do usuário: o Pix recebido do próprio titular, na planilha, é a "receita" do orçamento (custo de vida transferido de outra conta); a categoria "Custo de vida (recebido de outra conta sua)" existe para isso, mas nenhuma regra foi presumida.
+
+Esquema do banco versão 3 (tabelas `evento`, `orcamento`, `classe_categoria`; coluna `lancamento.evento_id`); o backup inclui as novas tabelas. Um backup da versão 3 não restaura em aplicativo anterior.
+
+Interface: campo de valor com máscara em todos os campos em reais (digitam-se números; vírgula e pontos de milhar entram sozinhos). Fora de escopo por falta de amostra: extrato da corretora (ver resposta ao usuário: proposta de patrimônio mensal).
+

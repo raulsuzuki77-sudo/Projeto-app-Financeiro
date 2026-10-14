@@ -46,7 +46,13 @@ export default function Revisar() {
   async function classificar(l: Lancamento, categoria: string) {
     const ids = await api.classificarLote(l.id, categoria, true);
     await recarregar();
-    toast({ texto: ids.length > 1 ? `${ids.length} itens parecidos classificados como ${rotuloCategoria(categoria)}.` : `Classificado como ${rotuloCategoria(categoria)}.` });
+    const texto = ids.length > 1 ? `${ids.length} itens parecidos classificados como ${rotuloCategoria(categoria)}.` : `Classificado como ${rotuloCategoria(categoria)}.`;
+    if (categoria !== "viagem") return toast({ texto });
+    // Gasto de viagem: oferece informar o período (evento) a partir da data do gasto, ou do intervalo do grupo.
+    const datas = (await Promise.all((ids.length ? ids : [l.id]).map((i) => api.lancamento(i)))).flatMap((x) => (x ? [x.data_local] : [])).sort();
+    const inicio = datas[0] ?? l.data_local;
+    const fim = datas[datas.length - 1];
+    toast({ texto, acao: { rotulo: "Informar período", fazer: () => router.push(`/eventos?novo=1&inicio=${inicio}${fim && fim > inicio ? `&fim=${fim}` : ""}`) } });
   }
 
   async function confirmar(l: Lancamento) {

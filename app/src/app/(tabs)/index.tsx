@@ -2,9 +2,10 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
-import { rotuloCategoria, type Sugestao } from "../../../../core/src/index";
+import { grupoDaCategoria, rotuloCategoria, type Sugestao } from "../../../../core/src/index";
 import { Pizza } from "../../components/pizza";
 import { SeletorCategoria } from "../../components/seletor-categoria";
+import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
 import { Aviso, Botao, Campo, CampoValor, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../../components/ui";
@@ -31,12 +32,13 @@ export default function Inicio() {
   const t = useTema();
   const router = useRouter();
   const toast = useToast();
-  const mes = mesAtual();
+  const [mes, setMes] = useState(mesAtual());
+  const [visao, setVisao] = useState<"categoria" | "grupo" | "classe">("categoria");
 
   const { dados, erro, carregando, recarregar } = useDados(async () => {
     await api.gerarRecorrencias();
-    const [resumo, cartoes] = await Promise.all([api.resumo(mes), api.cartoes()]);
-    return { resumo, cartoes };
+    const [resumo, cartoes, orcamento, viagens, recorrentes] = await Promise.all([api.resumo(mes), api.cartoes(), api.orcamento(mes), api.viagensSemEvento(), api.recorrentesDetectadas()]);
+    return { resumo, cartoes, orcamento, viagens, recorrentes };
   }, [mes]);
   useBotaoAtualizar(recarregar);
 
@@ -71,10 +73,26 @@ export default function Inicio() {
   }, [descricao, tipo]);
 
   const cartoes: CartaoLocal[] = dados?.cartoes ?? [];
-  const pizza = useMemo(
-    () => (dados?.resumo.por_categoria ?? []).filter((c) => c.categoria !== "nao_classificado").map((c) => ({ id: c.categoria, rotulo: rotuloCategoria(c.categoria), valor: c.total_centavos })),
-    [dados],
-  );
+  const pizza = useMemo(() => {
+    const porCategoria = (dados?.resumo.por_categoria ?? []).filter((c) => c.categoria !== "nao_classificado");
+    if (visao === "categoria") return porCategoria.map((c) => ({ id: c.categoria, rotulo: rotuloCategoria(c.categoria), valor: c.total_centavos }));
+    if (visao === "grupo") {
+      const soma = new Map<string, number>();
+      for (const c of porCategoria) soma.set(grupoDaCategoria(c.categoria), (soma.get(grupoDaCategoria(c.categoria)) ?? 0) + c.total_centavos);
+      return [...soma.entries()].map(([g, v]) => ({ id: g, rotulo: g, valor: v }));
+    }
+    return (dados?.orcamento.classes ?? []).filter((c) => c.id !== "sem_classe" && c.realizado_centavos > 0).map((c) => ({ id: c.id, rotulo: c.rotulo, valor: c.realizado_centavos }));
+  }, [dados, visao]);
+  const avisos = useMemo(() => {
+    const lista: { texto: string; rotulo: string; rota: string }[] = [];
+    const estouros = dados?.orcamento.alertas.filter((a) => a.tipo === "estourou").length ?? 0;
+    if (estouros > 0) lista.push({ texto: `${estouros} item(ns) do orçamento acima do planejado em ${nomeMes(mes)}.`, rotulo: "Ver orçamento", rota: "/orcamento" });
+    const viagens = dados?.viagens.length ?? 0;
+    if (viagens > 0) lista.push({ texto: `${viagens} gasto(s) de viagem sem período definido. Informe quando a viagem ocorreu.`, rotulo: "Informar período", rota: "/eventos" });
+    const novas = (dados?.recorrentes ?? []).filter((r) => !r.cadastrada && !r.encerrada).length;
+    if (novas > 0) lista.push({ texto: `${novas} gasto(s) se repetem todo mês e ainda não estão cadastrados como recorrentes.`, rotulo: "Ver recorrentes", rota: "/recorrentes" });
+    return lista;
+  }, [dados, mes]);
   const semCategoria = dados?.resumo.por_categoria.find((c) => c.categoria === "nao_classificado")?.total_centavos ?? 0;
   const totalDespesas = dados?.resumo.despesas_centavos ?? 0;
 
@@ -143,11 +161,13 @@ export default function Inicio() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={carregando} onRefresh={recarregar} tintColor={t.primaria} />}>
         {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
 
-        <Cartao titulo={`Gastos de ${nomeMes(mes)}`}>
+        <Cartao titulo="Gastos do mês">
+          <SeletorMes mes={mes} onChange={setMes} />
+          <Segmentado rotulo="Ver por" valor={visao} onChange={setVisao} opcoes={[{ id: "categoria", rotulo: "Categoria" }, { id: "grupo", rotulo: "Grupo" }, { id: "classe", rotulo: "Classe" }]} />
           {pizza.length > 0 ? (
             <Pizza dados={pizza} tamanho={180} legenda={4} />
           ) : (
-            <Texto suave>Ainda não há gastos categorizados neste mês. Registre um lançamento abaixo.</Texto>
+            <Texto suave>Ainda não há gastos categorizados neste mês.{mes === mesAtual() ? " Registre um lançamento abaixo." : ""}</Texto>
           )}
           {semCategoria > 0 || (dados?.resumo.pendentes ?? 0) > 0 ? (
             <View style={{ gap: 8 }}>
@@ -155,8 +175,19 @@ export default function Inicio() {
               <Botao rotulo="Revisar agora" onPress={() => router.push("/revisar")} secundario pequeno />
             </View>
           ) : null}
-          {pizza.length > 0 ? <Texto suave pequeno>Total de despesas no mês: {formatarBRL(totalDespesas)}. Toque numa fatia para ver o valor.</Texto> : null}
+          {pizza.length > 0 ? <Texto suave pequeno>Total de despesas no mês: {formatarBRL(totalDespesas)}. {visao === "classe" ? "Por classe do orçamento, incluindo aportes. " : ""}Toque numa fatia para ver o valor.</Texto> : null}
         </Cartao>
+
+        {avisos.length > 0 ? (
+          <Cartao titulo="Avisos">
+            {avisos.map((a) => (
+              <View key={a.rota} style={{ gap: 8 }}>
+                <Aviso tipo="info">{a.texto}</Aviso>
+                <Botao rotulo={a.rotulo} onPress={() => router.push(a.rota as never)} secundario pequeno />
+              </View>
+            ))}
+          </Cartao>
+        ) : null}
 
         <Cartao titulo="Novo lançamento">
           <Segmentado

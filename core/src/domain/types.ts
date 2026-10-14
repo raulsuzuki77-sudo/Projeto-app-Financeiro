@@ -49,6 +49,8 @@ export interface Lancamento {
   hash_dedup: string;
   possivel_duplicado_de: number | null;
   motivo_revisao: string | null;
+  /** Evento (viagem, férias) a que o gasto pertence, além da categoria. */
+  evento_id: number | null;
   criado_em: string;
   atualizado_em: string;
 }

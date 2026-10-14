@@ -1,4 +1,4 @@
-import { criarCartao, criarMeta, criarRecorrencia, paraLocal, registrarLancamento, salvarPremissa, somarDias, type Db } from "../../../core/src/index";
+import { criarCartao, criarEvento, criarMeta, criarRecorrencia, definirOrcamento, ITEM_RECEITA, paraLocal, registrarLancamento, salvarPremissa, somarDias, type Db } from "../../../core/src/index";
 
 /** Dados FICTÍCIOS para a prévia web: nada daqui vem de contas reais. */
 export function semearDemonstracao(db: Db): void {
@@ -43,4 +43,28 @@ export function semearDemonstracao(db: Db): void {
   criarMeta(db, U, { nome: "Reserva de emergência", tipo: "reserva_emergencia", valor_alvo_centavos: 3000000, aporte_inicial_centavos: 500000, prazo_meses: 18, perfil: "conservador" });
   criarMeta(db, U, { nome: "Viagem", tipo: "curto_prazo", valor_alvo_centavos: 1200000, aporte_inicial_centavos: 0, prazo_meses: 12, perfil: "moderado" });
   salvarPremissa(db, U, { chave: "moderado", retorno_nominal_aa: 0.1 });
+
+  // Dois meses anteriores (fictícios): permitem ver gastos de meses passados, recorrências detectadas, evento e orçamento.
+  const mesAnterior = (n: number) => { const d = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5)) - 1 - n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const h = (n: number, dia: number, valor: number, desc: string, categoria: string, tipo: "despesa" | "receita" | "investimento" = "despesa") =>
+    registrarLancamento(db, { usuario_id: U, tipo, valor_centavos: valor, descricao: desc, categoria, forma_pagamento: "pix", data_local: `${mesAnterior(n)}-${String(dia).padStart(2, "0")}`, hora_local: null, precisao_horario: "desconhecido", origem: "csv", referencia: `demo-h-${n}-${++n2}` });
+  let n2 = 0;
+  for (const n of [1, 2]) {
+    h(n, 5, 180000, "Aluguel", "moradia");
+    h(n, 8, 21900, "Spotify", "lazer_assinaturas");
+    h(n, 10, 12990, "Clube Livelo", "clube_pontos");
+    h(n, 12, 69800 + n * 900, "Condomínio Residencial", "moradia");
+    h(n, 15, 45000 + n * 3000, "Assaí Atacadista", "alimentacao_supermercado");
+    h(n, 18, 9800, "Restaurante Sabor da Vila", "alimentacao_restaurante");
+    h(n, 20, 15000, "Aporte previdência", "investimento_previdencia", "investimento");
+    h(n, 25, 520000, "Salário", "receita_trabalho", "receita");
+  }
+  // Viagem sem evento no mês atual (a tela pergunta o período) e férias no mês anterior (com evento).
+  const dd = (dia: number) => `${mes}-${String(Math.min(dia, 28)).padStart(2, "0")}`;
+  registrarLancamento(db, { usuario_id: U, tipo: "despesa", valor_centavos: 89000, descricao: "Passagem aérea Azul", categoria: "viagem", forma_pagamento: "credito", data_local: dd(3), hora_local: null, precisao_horario: "desconhecido", origem: "csv", referencia: "demo-viagem-atual" });
+  for (const [dia, valor, desc, cat] of [[10, 76000, "Pousada Brisa", "viagem"], [11, 18500, "Restaurante Mar Azul", "alimentacao_restaurante"], [12, 9200, "Passeio de buggy", "lazer_passeios"], [14, 14300, "Bar Pôr do Sol", "lazer_bar"]] as [number, number, string, string][]) h(1, dia, valor, desc, cat);
+  criarEvento(db, U, { nome: "Férias em Jericoacoara", tipo: "ferias", data_inicio: `${mesAnterior(1)}-10`, data_fim: `${mesAnterior(1)}-16`, vincular: true });
+  // Orçamento (valores fictícios): padrão de todos os meses e receita
+  const plano: [string, number][] = [[ITEM_RECEITA, 520000], ["moradia", 250000], ["alimentacao_supermercado", 50000], ["alimentacao_restaurante", 20000], ["lazer_assinaturas", 3000], ["clube_pontos", 13000], ["investimento_previdencia", 15000], ["transporte_combustivel", 30000], ["viagem", 40000], ["saude", 15000]];
+  for (const [item, v] of plano) definirOrcamento(db, U, "*", item, v);
 }

@@ -142,6 +142,25 @@ export function coberturaDaRecorrencia(db: Db, usuarioId: string, id: number, ho
   return out;
 }
 
+/** Antes de cadastrar: em quais dos últimos `nMeses` meses (contando o atual) já existe um lançamento que contempla este compromisso? */
+export function coberturaPrevia(db: Db, usuarioId: string, r: { descricao: string; tipo: Recorrencia["tipo"]; valor_centavos: number }, hojeLocal: string, nMeses = 4): Cobertura[] {
+  if (!r.descricao.trim() || !(r.valor_centavos > 0)) return [];
+  const mesHoje = hojeLocal.slice(0, 7);
+  const out: Cobertura[] = [];
+  for (let k = nMeses - 1; k >= 0; k--) {
+    const mes = mesesAtrasInterno(mesHoje, k);
+    const c = contemplam(db, usuarioId, r, mes)[0];
+    if (c) out.push({ mes, lancamento_id: c.id, descricao: c.descricao, valor_centavos: c.valor_centavos });
+  }
+  return out;
+}
+
+function mesesAtrasInterno(mes: string, n: number): string {
+  const [a, m] = mes.split("-").map(Number) as [number, number];
+  const t = a * 12 + (m - 1) - n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}
+
 /**
  * Gera os lançamentos devidos das recorrências ativas, de `inicio_mes` até o mês de `hojeLocal` (no máximo 24 meses para trás).
  * Em meses curtos, o dia é ajustado ao último dia (dia 31 em fevereiro vira 28 ou 29). Só gera datas que já chegaram.

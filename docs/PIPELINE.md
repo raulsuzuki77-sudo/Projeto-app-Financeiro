@@ -15,6 +15,7 @@ Atualizado em 14/10/2026 (segunda versao do app). Base: decisao de tornar o apli
 | L5 Guia de instalacao | `docs/INSTALACAO_IPHONE.md` |
 | N1 Extratos Nubank e aprendizado | CSV de conta e cartao, estorno, transferencia, aporte, camada de transacao repetida (DECISOES, item 13) |
 | N2 Versao web para computador | Pacote zip com banco persistente no navegador, importacao de CSV/OFX/PDF/imagem, PDF com senha (DECISOES, item 14) |
+| O1 a O5 Orcamento, eventos, recorrentes | Classes do orcamento, eventos (viagens e ferias), recorrentes detectadas, orcamento planejado x realizado, campo de valor com mascara (DECISOES, item 15) |
 | U1 a U4 Segunda versao | Nova navegacao, pizza, revisao rapida, recorrentes, edicao/exclusao, senha de PDF, PDF pelo Compartilhar, previa web (ver DECISOES, item 12) |
 
 ## Em aberto (depende do usuario)
@@ -27,7 +28,8 @@ Atualizado em 14/10/2026 (segunda versao do app). Base: decisao de tornar o apli
 
 | # | Tarefa | Criterio de aceite |
 |---|---|---|
-| T4 | Orcamento e alertas | Orcamento 50/30/20 e por categoria; alertas locais de estouro, assinatura nova, cobranca duplicada, custo de juros do rotativo; compromisso de parcelas futuras |
+| T4 | Orcamento e alertas (parcial) | Feito: orcamento por categoria e classe, alertas de estouro. Falta: alerta de cobranca duplicada, custo de juros do rotativo, compromisso de parcelas futuras |
+| T10 | Patrimonio e corretora | Extrato mensal da corretora (precisa de amostra), patrimonio por posicao e progresso das metas |
 | T7 | Seguranca, LGPD e qualidade | Exportar e excluir todos os dados; revisao de seguranca; politica de retencao |
 | T8 | Notificacoes locais | Lembrete de vencimento e de revisao semanal, sem servidor |
 | T9 | Atualizacao de taxas | Importacao manual/assistida de Selic, CDI e IPCA com fonte e data |

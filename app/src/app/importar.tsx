@@ -3,9 +3,11 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Switch, Text, View } from "react-native";
+import { somarDias } from "../../../core/src/index";
 import { useTema } from "../components/tema";
 import { Aviso, Botao, Campo, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../components/ui";
 import { api, type Cartao as CartaoLocal } from "../lib/api";
+import { dataBR } from "../lib/format";
 import { importarArquivo, type TipoImportacao } from "../lib/importar";
 import { ErroPdfProtegido } from "../lib/ocr";
 import { apagarSenhaPdf, lerSenhaPdf, salvarSenhaPdf } from "../lib/senha-pdf";
@@ -39,6 +41,7 @@ export default function Importar() {
   /** Período (mínimo e máximo) dos lançamentos lidos nesta importação. */
   const [periodo, setPeriodo] = useState<{ de: string; ate: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [semEvento, setSemEvento] = useState(false);
 
   useEffect(() => {
     api.cartoes().then(setCartoes, () => undefined);
@@ -60,6 +63,8 @@ export default function Importar() {
     setResultado(null);
     setErro(null);
     setPedirSenha(null);
+    setPeriodo(null);
+    setSemEvento(false);
   }
 
   async function escolherCartao(id: number | null) {
@@ -95,6 +100,7 @@ export default function Importar() {
     setErro(null);
     setResultado(null);
     setPeriodo(null);
+    setSemEvento(false);
     let de: string | null = null;
     let ate: string | null = null;
     const feitos: string[] = [];
@@ -184,6 +190,13 @@ export default function Importar() {
           <Cartao titulo="Resultado">
             <Texto>{resultado}</Texto>
             <Botao rotulo="Ir para Revisar" onPress={() => router.replace("/revisar")} secundario />
+          </Cartao>
+        ) : null}
+        {resultado && periodo && !semEvento ? (
+          <Cartao titulo="Houve viagem ou férias neste período?">
+            <Texto suave>Os gastos importados vão de {dataBR(periodo.de)} a {dataBR(periodo.ate)}. Se houve viagem ou férias, informe o evento: os gastos do período são vinculados a ele e continuam em suas categorias.</Texto>
+            <Botao rotulo="Informar viagem ou férias" onPress={() => router.push(`/eventos?novo=1&inicio=${periodo.de}&fim=${periodo.ate > somarDias(periodo.de, 30) ? somarDias(periodo.de, 30) : periodo.ate}`)} />
+            <Botao rotulo="Não houve" secundario onPress={() => setSemEvento(true)} />
           </Cartao>
         ) : null}
       </ScrollView>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { CATEGORIAS } from "../../../core/src/index";
+import { CATEGORIAS, CLASSES } from "../../../core/src/index";
 import { BotaoIcone } from "./ui";
 import { useTema } from "./tema";
 
@@ -11,14 +11,14 @@ export function SeletorCategoria({ visivel, selecionada, onEscolher, onFechar }:
   const itens = useMemo(() => {
     const q = busca.trim().toLowerCase();
     const lista = CATEGORIAS.filter((c) => c.id !== "nao_classificado" && (!q || c.rotulo.toLowerCase().includes(q) || c.grupo.toLowerCase().includes(q)));
-    const out: ({ tipo: "grupo"; grupo: string } | { tipo: "cat"; id: string; rotulo: string })[] = [];
+    const out: ({ tipo: "grupo"; grupo: string } | { tipo: "cat"; id: string; rotulo: string; classe: string | null })[] = [];
     let atual = "";
     for (const c of lista) {
       if (c.grupo !== atual) {
         atual = c.grupo;
         out.push({ tipo: "grupo", grupo: atual });
       }
-      out.push({ tipo: "cat", id: c.id, rotulo: c.rotulo });
+      out.push({ tipo: "cat", id: c.id, rotulo: c.rotulo, classe: CLASSES.find((x) => x.id === c.classe)?.rotulo ?? null });
     }
     return out;
   }, [busca]);
@@ -46,7 +46,10 @@ export function SeletorCategoria({ visivel, selecionada, onEscolher, onFechar }:
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item }) =>
             item.tipo === "grupo" ? (
-              <Text style={{ color: t.suave, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 6 }}>{item.grupo}</Text>
+              // O grupo (ex.: Alimentação) em destaque; as categorias abaixo ficam recuadas, para mostrar que estão contidas nele.
+              <View accessibilityRole="header" style={{ backgroundColor: t.suave2, borderLeftWidth: 4, borderLeftColor: t.primaria, marginTop: 14, paddingHorizontal: 16, paddingVertical: 10 }}>
+                <Text style={{ color: t.primaria, fontSize: 17, fontWeight: "800" }}>{item.grupo}</Text>
+              </View>
             ) : (
               <Pressable
                 accessibilityRole="button"
@@ -55,9 +58,12 @@ export function SeletorCategoria({ visivel, selecionada, onEscolher, onFechar }:
                   setBusca("");
                   onEscolher(item.id);
                 }}
-                style={({ pressed }) => [estilos.linha, { backgroundColor: item.id === selecionada ? t.suave2 : pressed ? t.suave2 : "transparent" }]}
+                style={({ pressed }) => [estilos.linha, { backgroundColor: item.id === selecionada ? t.suave2 : pressed ? t.suave2 : "transparent", marginLeft: 28, borderLeftWidth: 1, borderLeftColor: t.borda }]}
               >
-                <Text style={{ color: t.texto, fontSize: 16, flex: 1 }}>{item.rotulo}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: t.texto, fontSize: 16 }}>{item.rotulo}</Text>
+                  {item.classe ? <Text style={{ color: t.suave, fontSize: 12 }}>Classe: {item.classe}</Text> : null}
+                </View>
                 {item.id === selecionada ? <Text style={{ color: t.primaria, fontWeight: "700" }}>Atual</Text> : null}
               </Pressable>
             )
@@ -73,5 +79,5 @@ const estilos = StyleSheet.create({
   raiz: { flex: 1, paddingTop: 12 },
   topo: { flexDirection: "row", alignItems: "center", paddingLeft: 20, paddingRight: 8 },
   busca: { marginHorizontal: 20, marginTop: 8, minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
-  linha: { minHeight: 52, paddingHorizontal: 20, flexDirection: "row", alignItems: "center" },
+  linha: { minHeight: 52, paddingHorizontal: 16, paddingVertical: 6, flexDirection: "row", alignItems: "center" },
 });

@@ -1,5 +1,5 @@
 import {
-  alterarLancamento, atualizarEvento, copiarOrcamento, coberturaDaRecorrencia, criarEvento, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento, detectarRecorrentes,
+  alterarLancamento, atualizarEvento, copiarOrcamento, coberturaDaRecorrencia, coberturaPrevia, criarEvento, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento, detectarRecorrentes,
   gerarRecorrenciasDetalhado, listarEventos, orcamentoVsMetas, painelOrcamento, removerEvento, removerOrcamento, sugerirOrcamentoPelaMedia, viagensSemEvento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
   criarRecorrencia, definirTitular, editarLancamento, excluirLancamento, gerarRecorrencias, lancarManual, lerPremissas, listarCartoes, listarLancamentos, listarMetas,
   listarRecorrencias, mapaCalor, obterLancamento, paraLocal, processarMensagem, removerCartao, removerMeta, removerRecorrencia, reservaDeEmergencia,
@@ -66,6 +66,9 @@ export const api = {
   recorrentesDetectadas: async () => detectarRecorrentes(obterBanco(), USUARIO, hoje()),
   /** Meses em que os lançamentos importados já contemplam a recorrência (contada uma só vez). */
   coberturaRecorrencia: async (id: number) => coberturaDaRecorrencia(obterBanco(), USUARIO, id, hoje()),
+
+  /** Antes de cadastrar: meses recentes em que um lançamento importado já contempla o compromisso. */
+  coberturaPrevia: async (r: { descricao: string; tipo: "despesa" | "receita" | "investimento"; valor_centavos: number }) => coberturaPrevia(obterBanco(), USUARIO, r, hoje()),
 
   eventos: async () => listarEventos(obterBanco(), USUARIO),
   criarEvento: async (e: NovoEvento) => criarEvento(obterBanco(), USUARIO, e),

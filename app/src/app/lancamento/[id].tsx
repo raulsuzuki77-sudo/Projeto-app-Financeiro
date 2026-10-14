@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { rotuloCategoria } from "../../../../core/src/index";
 import { SeletorCategoria } from "../../components/seletor-categoria";
+import { SeletorEvento } from "../../components/seletor-evento";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
 import { Aviso, Botao, Campo, CampoValor, Cartao, Chip, GrupoChips, Segmentado, Texto } from "../../components/ui";
@@ -21,8 +22,9 @@ export default function EditarLancamento() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const numero = Number(id);
 
-  const { dados, erro } = useDados(async () => ({ l: await api.lancamento(numero), cartoes: await api.cartoes() }), [numero]);
+  const { dados, erro } = useDados(async () => ({ l: await api.lancamento(numero), cartoes: await api.cartoes(), eventos: await api.eventos() }), [numero]);
   const l = dados?.l;
+  const eventoOriginal = (l as (typeof l & { evento_id?: number | null }) | undefined)?.evento_id ?? null;
 
   const [tipo, setTipo] = useState<Tipo>("despesa");
   const [valor, setValor] = useState("");
@@ -32,6 +34,7 @@ export default function EditarLancamento() {
   const [forma, setForma] = useState<Forma | null>(null);
   const [cartaoId, setCartaoId] = useState<number | null>(null);
   const [categoria, setCategoria] = useState("nao_classificado");
+  const [eventoId, setEventoId] = useState<number | null>(null);
   const [seletor, setSeletor] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -46,6 +49,8 @@ export default function EditarLancamento() {
     setForma(l.forma_pagamento as Forma | null);
     setCartaoId(l.cartao_id);
     setCategoria(l.categoria);
+    setEventoId(eventoOriginal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [l]);
 
   async function salvar() {
@@ -59,6 +64,7 @@ export default function EditarLancamento() {
     setSalvando(true);
     try {
       await api.editar(numero, { tipo, valor_centavos: centavos, descricao, data_local: iso, hora_local: h, forma_pagamento: forma, cartao_id: cartaoId, categoria });
+      if (eventoId !== eventoOriginal) await api.definirEventoDoLancamento(numero, eventoId);
       toast({ texto: "Alterações salvas." });
       router.back();
     } catch (e) {
@@ -66,6 +72,11 @@ export default function EditarLancamento() {
     } finally {
       setSalvando(false);
     }
+  }
+
+  /** Abre o cadastro de evento já com o início na data deste gasto (a que está no campo, se válida). */
+  function novoEvento() {
+    router.push(`/eventos?novo=1&inicio=${dataParaISO(data, new Date().getFullYear()) ?? l?.data_local}`);
   }
 
   async function excluir() {
@@ -103,6 +114,7 @@ export default function EditarLancamento() {
             <GrupoChips>{FORMAS.map((f) => <Chip key={f.id} rotulo={f.rotulo} ativo={forma === f.id} onPress={() => setForma(forma === f.id ? null : f.id)} />)}</GrupoChips>
             {dados!.cartoes.length > 0 ? <GrupoChips>{dados!.cartoes.map((c) => <Chip key={c.id} rotulo={c.apelido} ativo={cartaoId === c.id} onPress={() => setCartaoId(cartaoId === c.id ? null : c.id)} />)}</GrupoChips> : null}
           </View>
+          {tipo === "despesa" || eventoId !== null ? <SeletorEvento eventos={dados!.eventos} valor={eventoId} onChange={setEventoId} categoria={categoria} onNovo={novoEvento} /> : null}
           {msg ? <Aviso tipo="erro">{msg}</Aviso> : null}
           <Botao rotulo="Salvar alterações" onPress={salvar} carregando={salvando} />
           <Botao rotulo="Excluir lançamento" icone="lixeira" onPress={excluir} perigo />

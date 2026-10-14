@@ -1,11 +1,11 @@
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTema } from "../components/tema";
 import { Aviso, Botao, Campo, CampoValor, Cartao, Texto } from "../components/ui";
 import { useBotaoAtualizar } from "../hooks/useDados";
 import { api, type CenariosDaMeta, type Meta, type PremissaApi, type Reserva } from "../lib/api";
-import { formatarBRL, percentualParaFracao, reaisParaCentavos } from "../lib/format";
+import { formatarBRL, mesAtual, nomeMes, percentualParaFracao, reaisParaCentavos } from "../lib/format";
 
 const TIPOS: { id: string; rotulo: string }[] = [
   { id: "reserva_emergencia", rotulo: "Reserva de emergência" },
@@ -23,6 +23,8 @@ const pct = (x: number) => `${(x * 100).toFixed(2).replace(".", ",")}%`;
 
 export default function Metas() {
   const t = useTema();
+  const router = useRouter();
+  const [vs, setVs] = useState<Awaited<ReturnType<typeof api.orcamentoVsMetas>> | null>(null);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [sobra, setSobra] = useState<number | null>(null);
@@ -37,7 +39,8 @@ export default function Metas() {
   const carregar = useCallback(async () => {
     try {
       setErro(null);
-      const [m, r, p, pr] = await Promise.all([api.metas(), api.reserva(6), api.poupanca(), api.premissas()]);
+      const [m, r, p, pr, orc] = await Promise.all([api.metas(), api.reserva(6), api.poupanca(), api.premissas(), api.orcamentoVsMetas(mesAtual())]);
+      setVs(orc);
       setPrem(pr.premissas);
       setEdit(Object.fromEntries(pr.premissas.map((x) => [x.chave, String((x.retorno_nominal_aa * 100).toFixed(2)).replace(".", ",")])));
       setMetas(m);
@@ -108,6 +111,22 @@ export default function Metas() {
         <Texto>Sobra média mensal confirmada: {sobra === null ? "..." : formatarBRL(sobra)}</Texto>
         {reserva && reserva.meses_sem_dados.length > 0 ? <Aviso tipo="info">{`Sem lançamentos essenciais confirmados em: ${reserva.meses_sem_dados.join(", ")}. A estimativa pode estar baixa; confirme os pendentes.`}</Aviso> : null}
       </Cartao>
+
+      {vs ? (
+        <Cartao titulo={`Metas e orçamento (${nomeMes(vs.mes)})`}>
+          <Texto>Reservado no orçamento para Liberdade financeira: {formatarBRL(vs.planejado_liberdade_centavos)} por mês.</Texto>
+          <Texto>Aporte que as metas ativas pedem (no perfil de cada uma): {formatarBRL(vs.aporte_necessario_metas_centavos)} por mês.</Texto>
+          {vs.metas.length === 0 ? (
+            <Texto suave>Crie metas abaixo para comparar com o orçamento.</Texto>
+          ) : vs.lacuna_liberdade_centavos > 0 ? (
+            <Aviso tipo="info">{`O orçamento reserva ${formatarBRL(vs.lacuna_liberdade_centavos)} a menos por mês do que as metas pedem${vs.superavit_planejado_centavos > 0 ? (vs.lacuna_com_superavit_centavos <= 0 ? `; o superávit planejado (${formatarBRL(vs.superavit_planejado_centavos)}) cobriria a diferença, se fosse destinado às metas` : `; mesmo com o superávit planejado (${formatarBRL(vs.superavit_planejado_centavos)}), faltariam ${formatarBRL(vs.lacuna_com_superavit_centavos)}`) : ""}.`}</Aviso>
+          ) : (
+            <Texto suave>O valor reservado cobre o aporte que as metas pedem (sobra de {formatarBRL(-vs.lacuna_liberdade_centavos)} por mês).</Texto>
+          )}
+          <Texto suave pequeno>Comparação de planejamento, baseada em simulação com premissas editáveis; não é recomendação de investimento.</Texto>
+          <Botao rotulo="Abrir orçamento" pequeno secundario onPress={() => router.push("/orcamento" as never)} />
+        </Cartao>
+      ) : null}
 
       {metas.map((m) => (
         <Cartao key={m.id}>

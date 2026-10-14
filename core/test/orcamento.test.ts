@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { abrirBancoTeste } from "./helpers";
 import {
   classificar, classeDaCategoria, coberturaDaRecorrencia, copiarOrcamento, criarEvento, criarMeta, criarRecorrencia, definirClasse, definirEventoDoLancamento, definirOrcamento, detalheEvento,
-  detectarRecorrentes, exportarDados, gerarRecorrenciasDetalhado, importarTexto, interpretarConta, lancarManual, listarEventos, listarLancamentos, orcamentoVsMetas, painelOrcamento,
+  detectarRecorrentes, coberturaPrevia, exportarDados, gerarRecorrenciasDetalhado, importarTexto, interpretarConta, lancarManual, listarEventos, listarLancamentos, orcamentoVsMetas, painelOrcamento,
   registrarLancamento, removerEvento, restaurarDados, sugerirOrcamentoPelaMedia, viagensSemEvento, ITEM_RECEITA, chaveEstabelecimento, definirTitular, resumoMensal,
 } from "../src/index";
 import type { Db } from "../src/db/tipos";
@@ -204,4 +204,14 @@ test("lancamento criado a mao dentro do periodo de um evento ja nasce vinculado"
   const { id } = criarEvento(db, U, { nome: "Curso em Brasilia", tipo: "viagem_servico", data_inicio: "2026-09-01", data_fim: "2026-09-05" });
   lancarManual(db, U, { tipo: "despesa", valor_centavos: 2500, descricao: "Almoco", categoria: "alimentacao_restaurante", data_local: "2026-09-02" }, "m");
   assert.equal(detalheEvento(db, U, id).total_centavos, 2500);
+});
+
+test("cobertura previa: avisa antes de cadastrar que o compromisso ja esta nos extratos", () => {
+  const db = abrirBancoTeste();
+  gasto(db, "2026-08-10", 12990, "Clube Livelo*Clube Liv", { categoria: "clube_pontos" });
+  gasto(db, "2026-09-10", 12990, "Clube Livelo*Clube Liv", { categoria: "clube_pontos" });
+  const c = coberturaPrevia(db, U, { descricao: "Livelo", tipo: "despesa", valor_centavos: 12990 }, "2026-10-14");
+  assert.deepEqual(c.map((x) => x.mes), ["2026-08", "2026-09"]);
+  assert.deepEqual(coberturaPrevia(db, U, { descricao: "Livelo", tipo: "despesa", valor_centavos: 50000 }, "2026-10-14"), []);
+  assert.deepEqual(coberturaPrevia(db, U, { descricao: "", tipo: "despesa", valor_centavos: 0 }, "2026-10-14"), []);
 });

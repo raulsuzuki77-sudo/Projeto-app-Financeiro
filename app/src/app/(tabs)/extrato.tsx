@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Platform, Pressable, RefreshControl, Text, View } from "react-native";
-import { rotuloCategoria } from "../../../../core/src/index";
+import { chaveEstabelecimento, rotuloCompleto } from "../../../../core/src/index";
 import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
@@ -20,7 +20,11 @@ export default function Extrato() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
 
-  const { dados, erro, carregando, recarregar } = useDados(() => api.lancamentos({ mes, tipo: filtro === "todos" ? undefined : filtro, busca, limite: 800 }), [mes, filtro, busca]);
+  const { dados: pacote, erro, carregando, recarregar } = useDados(async () => {
+    const [lancamentos, recorrentes, eventos] = await Promise.all([api.lancamentos({ mes, tipo: filtro === "todos" ? undefined : filtro, busca, limite: 800 }), api.recorrentesDetectadas(), api.eventos()]);
+    return { lancamentos, recorrentes: new Set(recorrentes.filter((r) => !r.encerrada).map((r) => `${r.tipo}|${r.chave}`)), eventos: new Map(eventos.map((e) => [e.id, e.nome])) };
+  }, [mes, filtro, busca]);
+  const dados = pacote?.lancamentos ?? null;
   useBotaoAtualizar(recarregar);
 
   const totais = useMemo(() => {
@@ -75,8 +79,15 @@ export default function Extrato() {
               {dataBR(l.data_local)}{l.hora_local !== null ? ` · ${String(l.hora_local).padStart(2, "0")}h` : ""}
             </Text>
             <Text style={{ color: l.status === "pendente" ? t.alerta : t.suave, fontSize: 13 }} numberOfLines={1}>
-              {rotuloCategoria(l.categoria)}{l.status === "pendente" ? " (pendente)" : ""}
+              {rotuloCompleto(l.categoria)}{l.status === "pendente" ? " (pendente)" : ""}
             </Text>
+            {pacote?.recorrentes.has(`${l.tipo}|${chaveEstabelecimento(l.estabelecimento_norm)}`) || pacote?.eventos.has(l.evento_id ?? -1) ? (
+              <Text style={{ color: t.primaria, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
+                {pacote?.recorrentes.has(`${l.tipo}|${chaveEstabelecimento(l.estabelecimento_norm)}`) ? "Recorrente" : ""}
+                {pacote?.recorrentes.has(`${l.tipo}|${chaveEstabelecimento(l.estabelecimento_norm)}`) && pacote?.eventos.has(l.evento_id ?? -1) ? " · " : ""}
+                {pacote?.eventos.has(l.evento_id ?? -1) ? `Evento: ${pacote.eventos.get(l.evento_id!)}` : ""}
+              </Text>
+            ) : null}
           </Pressable>
           <Text style={{ color: l.tipo === "receita" ? t.receita : l.tipo === "despesa" ? t.texto : t.suave, fontSize: 16, fontWeight: "700", paddingHorizontal: 8 }}>
             {l.tipo === "receita" ? "+" : l.tipo === "despesa" ? "−" : ""}{formatarBRL(l.valor_centavos)}
