@@ -1,0 +1,16 @@
+# Publicacao gratuita da versao web (para abrir no navegador do celular, sem computador).
+# No Netlify: "Add new site" > "Import from Git" > este repositorio > branch claude/financial-control-system-plan-fl4o1k.
+# Os dados ficam so no navegador de quem abre o endereco; nada e enviado a servidor.
+[build]
+  base = "app"
+  command = "npm install --no-audit --no-fund && (cd ../core && npm install --no-audit --no-fund) && npm run previa-estatica"
+  publish = "dist-web"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# O aplicativo usa rotas internas (/extrato, /orcamento...): toda rota abre o index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
