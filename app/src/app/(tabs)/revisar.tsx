@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
-import { rotuloCategoria } from "../../../../core/src/index";
+import { chaveEstabelecimento, rotuloCategoria } from "../../../../core/src/index";
 import { SeletorCategoria } from "../../components/seletor-categoria";
 import { useTema } from "../../components/tema";
 import { useToast } from "../../components/toast";
@@ -13,6 +13,8 @@ import { dataBR, formatarBRL } from "../../lib/format";
 interface Item {
   l: Lancamento;
   sugestoes: Sugestao[];
+  /** Quantos outros pendentes são do mesmo estabelecimento (classificados juntos com um toque). */
+  parecidos: number;
 }
 
 export default function Revisar() {
@@ -23,7 +25,18 @@ export default function Revisar() {
 
   const { dados, erro, carregando, recarregar } = useDados(async (): Promise<Item[]> => {
     const pendentes = await api.lancamentos({ status: "pendente", limite: 300 });
-    return Promise.all(pendentes.map(async (l) => ({ l, sugestoes: await api.sugestoes(l.descricao, l.tipo === "receita" ? "receita" : l.tipo === "investimento" ? "investimento" : "despesa") })));
+    // Estabelecimentos com mais pendentes primeiro: classificar um resolve todos os parecidos.
+    const grupo = (l: Lancamento) => `${l.natureza === "estorno" || l.tipo === "despesa" ? "d" : l.tipo}:${chaveEstabelecimento(l.estabelecimento_norm) || l.id}`;
+    const tamanho = new Map<string, number>();
+    for (const l of pendentes) tamanho.set(grupo(l), (tamanho.get(grupo(l)) ?? 0) + 1);
+    const ordenados = [...pendentes].sort((a, b) => (tamanho.get(grupo(b))! - tamanho.get(grupo(a))!) || b.valor_centavos - a.valor_centavos);
+    return Promise.all(
+      ordenados.map(async (l) => ({
+        l,
+        parecidos: tamanho.get(grupo(l))! - 1,
+        sugestoes: await api.sugestoes(l.descricao, l.natureza === "estorno" ? "despesa" : l.tipo === "receita" ? "receita" : l.tipo === "investimento" ? "investimento" : "despesa", { valor_centavos: l.valor_centavos, data_local: l.data_local }),
+      })),
+    );
   });
   useBotaoAtualizar(recarregar);
 
@@ -69,7 +82,7 @@ export default function Revisar() {
     Alert.alert("Aceitar sugestões", `Aplicar a primeira sugestão a ${comSugestao.length} item(ns)? Você pode corrigir depois no Extrato.`, [{ text: "Cancelar", style: "cancel" }, { text: "Aceitar", onPress: feito }]);
   }
 
-  const motivoLegivel = (s: Sugestao["motivo"]) => (s === "historico" ? "usada antes" : s === "parecido" ? "parecida" : s === "mais_usada" ? "mais usada" : "sugerida");
+  const motivoLegivel = (s: Sugestao["motivo"]) => (s === "repetida" ? "mesma transação de mês anterior" : s === "historico" ? "usada antes" : s === "parecido" ? "parecida" : s === "mais_usada" ? "mais usada" : "sugerida");
 
   return (
     <>
@@ -88,14 +101,14 @@ export default function Revisar() {
           </View>
         ) : null}
 
-        {(dados ?? []).map(({ l, sugestoes }) => {
+        {(dados ?? []).map(({ l, sugestoes, parecidos }) => {
           const real = l.categoria !== "nao_classificado";
           return (
             <Cartao key={l.id}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: t.texto, fontSize: 16, fontWeight: "700" }}>{l.descricao}</Text>
-                  <Text style={{ color: t.suave, fontSize: 13 }}>{dataBR(l.data_local)}{l.hora_local !== null ? ` ${String(l.hora_local).padStart(2, "0")}h` : ""}{real ? ` · ${rotuloCategoria(l.categoria)}` : ""}</Text>
+                  <Text style={{ color: t.suave, fontSize: 13 }}>{dataBR(l.data_local)}{l.hora_local !== null ? ` ${String(l.hora_local).padStart(2, "0")}h` : ""}{real ? ` · ${rotuloCategoria(l.categoria)}` : ""}{parecidos > 0 ? ` · +${parecidos} parecido(s)` : ""}{l.natureza === "estorno" ? " · estorno ou desconto" : ""}</Text>
                 </View>
                 <Text style={{ color: t.texto, fontSize: 16, fontWeight: "700" }}>{formatarBRL(l.valor_centavos)}</Text>
               </View>

@@ -1,12 +1,8 @@
 import { agruparEmLinhas, type LinhaOcr } from "../../../core/src/index";
 import OcrNativo from "../../modules/ocr-nativo/src/OcrNativoModule";
+import { ErroPdfProtegido } from "./ocr-erro";
 
-/** O PDF exige senha (ou a senha informada está errada). */
-export class ErroPdfProtegido extends Error {
-  constructor(readonly incorreta: boolean) {
-    super(incorreta ? "A senha do PDF está incorreta." : "Este PDF é protegido por senha.");
-  }
-}
+export { ErroPdfProtegido };
 
 /**
  * Lê o texto de uma foto ou PDF local, no aparelho (Vision + PDFKit), e devolve linhas com a confiança de cada uma.

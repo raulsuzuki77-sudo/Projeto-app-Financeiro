@@ -29,6 +29,30 @@ function LinhaCartao({ c, temSenha, aoMudar, aoRemover }: { c: CartaoLocal; temS
   );
 }
 
+function CartaoTitular() {
+  const toast = useToast();
+  const [nome, setNome] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  async function salvar() {
+    try {
+      const n = await api.definirTitular(nome);
+      setMsg(null);
+      setNome("");
+      toast({ texto: n > 0 ? `Titular salvo. ${n} lançamento(s) pendente(s) resolvido(s).` : "Titular salvo." });
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Não foi possível salvar.");
+    }
+  }
+  return (
+    <Cartao titulo="Titular (transferências entre suas contas)">
+      <Texto suave pequeno>Informe seu nome como aparece nos extratos. Pix de e para esse nome passam a ser transferência entre suas contas, sem contar como gasto nem como renda. Repita para outro nome, se houver.</Texto>
+      {msg ? <Aviso tipo="erro">{msg}</Aviso> : null}
+      <Campo rotulo="Nome completo" value={nome} onChangeText={setNome} autoCapitalize="words" />
+      <Botao rotulo="Salvar titular" secundario pequeno desabilitado={nome.trim().length < 5} onPress={salvar} />
+    </Cartao>
+  );
+}
+
 export default function Cartoes() {
   const t = useTema();
   const [apelido, setApelido] = useState("");
@@ -72,6 +96,7 @@ export default function Cartoes() {
         <Texto suave>Use o apelido nas mensagens ("mercado 50 crédito nomad") e para vincular faturas. Nunca informe o número completo do cartão. A senha do PDF, se houver, fica no Chaveiro do iPhone e nunca entra no backup.</Texto>
         {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
         {msg ? <Aviso tipo="erro">{msg}</Aviso> : null}
+        <CartaoTitular />
         {(dados?.cartoes ?? []).map((c) => <LinhaCartao key={c.id} c={c} temSenha={dados?.senhas.get(c.id) ?? false} aoMudar={recarregar} aoRemover={() => remover(c)} />)}
         <Cartao titulo="Novo cartão">
           <Campo rotulo="Apelido (uma palavra)" value={apelido} onChangeText={setApelido} autoCapitalize="none" placeholder="Ex.: nomad, nubank" />

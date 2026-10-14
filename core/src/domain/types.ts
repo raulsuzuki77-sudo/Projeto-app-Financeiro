@@ -8,6 +8,8 @@ export const NATUREZAS = [
   "investimento",
   "divida_juros_tarifas",
   "transferencia",
+  /** Crédito que reduz uma despesa (estorno, desconto, devolução): entra como entrada, mas abate a despesa da categoria. */
+  "estorno",
 ] as const;
 export type Natureza = (typeof NATUREZAS)[number];
 
@@ -74,4 +76,6 @@ export interface NovoLancamento {
   natureza?: Natureza;
   /** Quando preenchido, o lançamento nasce pendente com este motivo, mesmo se a classificação for confiável. */
   alerta_revisao?: string;
+  /** Crédito que abate uma despesa anterior (estorno, desconto, devolução). Grava como entrada de natureza `estorno` e classifica pela despesa de origem. */
+  estorno?: boolean;
 }

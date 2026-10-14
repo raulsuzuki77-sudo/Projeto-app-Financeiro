@@ -12,6 +12,7 @@ export * from "./ingest/lancamentos";
 export * from "./ingest/conversa";
 export * from "./importers/comum";
 export * from "./importers/csv";
+export * from "./importers/nubank";
 export * from "./importers/ofx";
 export * from "./importers/fatura-texto";
 export * from "./importers/comprovante";

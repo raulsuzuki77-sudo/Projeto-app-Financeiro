@@ -20,3 +20,7 @@ export function obterBanco(): Db {
 export async function iniciarBanco(): Promise<void> {
   obterBanco();
 }
+
+/** Só existem na versão web (computador); no iPhone os dados ficam no banco do aplicativo. */
+export const dadosNoNavegador = (): boolean => false;
+export async function apagarDadosDoNavegador(): Promise<void> {}

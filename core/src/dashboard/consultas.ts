@@ -19,12 +19,17 @@ export function resumoMensal(db: Db, usuarioId: string, mes: string): ResumoMens
   const base = "usuario_id = ? AND status != 'cancelado' AND substr(data_local,1,7) = ?";
   const soma = (tipo: string) =>
     (db.prepare(`SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE ${base} AND tipo = ?`).get(usuarioId, mes, tipo) as { t: number }).t;
-  const receitas = soma("receita");
-  const despesas = soma("despesa");
+  // Estornos e descontos (natureza "estorno") entram como entrada no banco, mas abatem a despesa em vez de contarem como renda.
+  const estornos = (db.prepare(`SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE ${base} AND tipo = 'receita' AND natureza = 'estorno'`).get(usuarioId, mes) as { t: number }).t;
+  const receitas = soma("receita") - estornos;
+  const despesas = Math.max(0, soma("despesa") - estornos);
   const investimentos = soma("investimento");
   const pendentes = (db.prepare(`SELECT COUNT(*) c FROM lancamento WHERE ${base} AND status = 'pendente'`).get(usuarioId, mes) as { c: number }).c;
   const por_categoria = db
-    .prepare(`SELECT categoria, SUM(valor_centavos) total_centavos FROM lancamento WHERE ${base} AND tipo = 'despesa' GROUP BY categoria ORDER BY total_centavos DESC`)
+    .prepare(
+      `SELECT categoria, SUM(CASE WHEN tipo = 'despesa' THEN valor_centavos ELSE -valor_centavos END) total_centavos FROM lancamento
+       WHERE ${base} AND (tipo = 'despesa' OR (tipo = 'receita' AND natureza = 'estorno')) GROUP BY categoria HAVING total_centavos > 0 ORDER BY total_centavos DESC`,
+    )
     .all(usuarioId, mes) as ResumoMensal["por_categoria"];
   const por_natureza = db
     .prepare(`SELECT natureza, SUM(valor_centavos) total_centavos FROM lancamento WHERE ${base} AND tipo = 'despesa' GROUP BY natureza ORDER BY total_centavos DESC`)

@@ -1,8 +1,8 @@
 import {
   alterarLancamento, atualizarMeta, atualizarRecorrencia, calendarioMensal, capacidadePoupanca, cenariosDaMeta, classificarEmLote, criarCartao, criarMeta,
-  criarRecorrencia, editarLancamento, excluirLancamento, gerarRecorrencias, lancarManual, lerPremissas, listarCartoes, listarLancamentos, listarMetas,
+  criarRecorrencia, definirTitular, editarLancamento, excluirLancamento, gerarRecorrencias, lancarManual, lerPremissas, listarCartoes, listarLancamentos, listarMetas,
   listarRecorrencias, mapaCalor, obterLancamento, paraLocal, processarMensagem, removerCartao, removerMeta, removerRecorrencia, reservaDeEmergencia,
-  restaurarLancamento, resumoMensal, salvarPremissa, sugerirCategorias,
+  reaplicarRegrasAosPendentes, restaurarLancamento, resumoMensal, salvarPremissa, sugerirCategorias,
   type Cartao, type CenarioMeta, type EdicaoCompleta, type FiltroLancamentos, type Lancamento, type LancamentoManual, type Meta, type Natureza,
   type NovaRecorrencia, type Premissa, type Recorrencia, type ResumoMensal, type Status, type Sugestao,
 } from "../../../core/src/index";
@@ -39,7 +39,11 @@ export const api = {
   excluir: async (id: number) => excluirLancamento(obterBanco(), id, USUARIO),
   restaurar: async (id: number) => restaurarLancamento(obterBanco(), id, USUARIO),
   classificarLote: async (id: number, categoria: string, similares = true) => classificarEmLote(obterBanco(), id, USUARIO, categoria, similares),
-  sugestoes: async (descricao: string, tipo: "despesa" | "receita" | "investimento" = "despesa") => sugerirCategorias(obterBanco(), USUARIO, descricao, tipo),
+  sugestoes: async (descricao: string, tipo: "despesa" | "receita" | "investimento" = "despesa", ctx?: { valor_centavos?: number; data_local?: string }) => sugerirCategorias(obterBanco(), USUARIO, descricao, tipo, 3, ctx),
+  /** Reaplica as regras aprendidas aos pendentes sem categoria. Devolve quantos foram resolvidos. */
+  reaplicarRegras: async () => reaplicarRegrasAosPendentes(obterBanco(), USUARIO),
+  /** Nome do titular: Pix de/para esse nome passam a ser transferência entre as próprias contas. Devolve quantos pendentes foram resolvidos. */
+  definirTitular: async (nome: string) => definirTitular(obterBanco(), USUARIO, nome),
 
   resumo: async (mes: string) => resumoMensal(obterBanco(), USUARIO, mes),
   mapaCalor: async (de: string, ate: string) => mapaCalor(obterBanco(), USUARIO, de, ate),

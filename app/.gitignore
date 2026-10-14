@@ -41,3 +41,5 @@ yarn-error.*
 /android
 public/sql-wasm.wasm
 dist-web/
+public/ocr/
+dist-pc/

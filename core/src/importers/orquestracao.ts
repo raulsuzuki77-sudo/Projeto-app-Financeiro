@@ -6,6 +6,7 @@ import { lerCsv } from "./csv";
 import { hashLote, importarItens, type RelatorioImportacao } from "./comum";
 import { lerFaturaLinhas, type Conciliacao } from "./fatura-texto";
 import { lerOfx } from "./ofx";
+import type { FormatoCsv } from "./nubank";
 
 export interface ContextoImportacaoArquivo {
   usuario_id: string;
@@ -70,7 +71,7 @@ export function importarComprovante(db: Db, linhas: string[], identificador: str
 export type FormatoTexto = "ofx" | "csv" | "fatura-texto";
 
 export type ResultadoTexto =
-  | { ok: true; relatorio: RelatorioImportacao; rejeitadas?: { linha: number; motivo: string }[]; nao_lidas?: string[]; conciliacao?: Conciliacao | null }
+  | { ok: true; relatorio: RelatorioImportacao; rejeitadas?: { linha: number; motivo: string }[]; nao_lidas?: string[]; conciliacao?: Conciliacao | null; formato_csv?: FormatoCsv }
   | { ok: false; erro: string };
 
 /** Importa arquivo de texto: OFX, CSV com cabecalho ou texto de fatura. */
@@ -83,9 +84,11 @@ export function importarTexto(db: Db, formato: FormatoTexto, conteudo: string, c
     return { ok: true, relatorio: importarItens(db, itens, { ...base, origem: "ofx", positivoEhDespesa: false }) };
   }
   if (formato === "csv") {
-    const { itens, rejeitadas } = lerCsv(conteudo);
+    const { itens, rejeitadas, formato } = lerCsv(conteudo);
     if (itens.length === 0) return { ok: false, erro: rejeitadas[0]?.motivo ?? "nenhuma linha valida no CSV" };
-    return { ok: true, relatorio: importarItens(db, itens, { ...base, origem: "csv" }), rejeitadas };
+    // No CSV do cartao Nubank, valor positivo e compra; nos demais, negativo e saida. O extrato da conta nunca pertence a um cartao.
+    const ctxCsv = { ...base, origem: "csv" as const, positivoEhDespesa: formato === "nubank_cartao", cartao_id: formato === "nubank_conta" ? null : base.cartao_id };
+    return { ok: true, relatorio: importarItens(db, itens, ctxCsv), rejeitadas, formato_csv: formato };
   }
   const r = importarFatura(db, conteudo.split(/\r?\n/).map((t) => ({ texto: t })), lote, ctx, "fatura_texto");
   return r.ok ? { ok: true, relatorio: r.relatorio, nao_lidas: r.nao_lidas, conciliacao: r.conciliacao } : { ok: false, erro: r.erro };

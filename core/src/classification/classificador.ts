@@ -8,10 +8,17 @@ export interface Classificacao {
   categoria: string;
   natureza: Natureza;
   confianca: number;
-  fonte: "usuario" | "historico" | "base" | "similar" | "nenhuma";
+  fonte: "usuario" | "repetida" | "historico" | "base" | "similar" | "nenhuma";
+}
+
+/** Dados do lançamento que ajudam a reconhecer a mesma transação repetida (mesma descrição e mesmo valor) em outro mês. */
+export interface ContextoClassificacao {
+  valor_centavos?: number;
+  data_local?: string;
 }
 
 const CONF_USUARIO = 0.95;
+const CONF_REPETIDA = 0.96;
 const CONF_HISTORICO = 0.9;
 const CONF_BASE = 0.8;
 const CONF_SIMILAR = 0.82;
@@ -30,14 +37,20 @@ function contemTermo(descNorm: string, termo: string): boolean {
 const PREFIXOS = new Set(["ifd", "pty", "mp", "pag", "sumup", "iz", "zp", "ec", "pagseguro", "mercadopago", "picpay", "paypal", "stone", "cielo", "getnet", "rede"]);
 const RUIDO = new Set(["br", "ltda", "sa", "me", "epp", "eireli", "com", "de", "da", "do", "das", "dos", "e", "lj", "loja"]);
 
+/** Marcadores que a leitura de extratos coloca antes do nome ("Pix enviado: NOME", "Boleto: BENEFICIARIO"). Nao identificam o estabelecimento. */
+const MARCADORES = /^(pix enviado|pix recebido|boleto|transferencia enviada|transferencia recebida|desconto antecipacao|iof de volta de)\s+/;
+
 /**
  * Chave estável do estabelecimento: tira prefixos de intermediadores, números, códigos de loja, cidade/UF no fim
  * e fica com as duas primeiras palavras relevantes. "DROGASIL 1473 GOIANIA" e "DROGASIL 2346 GOIANIA" -> "drogasil goiania".
+ * Pix, boletos e transferências identificam o favorecido pelo nome: nesses casos ficam as três primeiras palavras do nome.
  */
 export function chaveEstabelecimento(descricao: string): string {
-  const toks = normalizar(descricao).split(" ").filter(Boolean);
+  const norm = normalizar(descricao);
+  const m = norm.match(MARCADORES);
+  const toks = (m ? norm.slice(m[0].length) : norm).split(" ").filter(Boolean);
   const limpos = toks.filter((t) => !PREFIXOS.has(t) && !RUIDO.has(t) && !/\d/.test(t) && t.length > 1);
-  return limpos.slice(0, 2).join(" ");
+  return limpos.slice(0, m ? 3 : 2).join(" ");
 }
 
 function tokensDe(chave: string): Set<string> {
@@ -78,14 +91,35 @@ function maisFrequente(itens: Hist[]): { categoria: string; natureza: Natureza; 
 }
 
 /**
+ * Transação igualmente repetida: mesma descrição e mesmo valor já classificados PELO USUÁRIO (confiança 1: confirmou, editou ou
+ * lançou com categoria) em outro mês. Só vale se todas as ocorrências validadas concordam; havendo divergência, não propõe.
+ * Classificações automáticas não servem de prova (evita que um erro se reproduza sozinho mês após mês).
+ */
+function transacaoRepetida(db: Db, usuarioId: string, descNorm: string, ctx?: ContextoClassificacao): { categoria: string; natureza: Natureza } | null {
+  if (!descNorm || !ctx?.valor_centavos) return null;
+  const mes = ctx.data_local ? ctx.data_local.slice(0, 7) : "";
+  const rows = db
+    .prepare(
+      `SELECT categoria, natureza FROM lancamento
+       WHERE usuario_id = ? AND estabelecimento_norm = ? AND valor_centavos = ? AND status = 'confirmado' AND confianca >= 0.99
+         AND categoria != 'nao_classificado' AND (? = '' OR substr(data_local,1,7) != ?)
+       ORDER BY data_local DESC, id DESC LIMIT 12`,
+    )
+    .all(usuarioId, descNorm, ctx.valor_centavos, mes, mes) as { categoria: string; natureza: Natureza }[];
+  if (!rows.length || rows.some((r) => r.categoria !== rows[0]!.categoria)) return null;
+  return { categoria: rows[0]!.categoria, natureza: rows[0]!.natureza };
+}
+
+/**
  * Classificação em camadas, da mais para a menos confiável:
  *  1. regras que o usuário corrigiu explicitamente;
+ *  1b. a mesma transação (descrição e valor iguais) já validada pelo usuário em outro mês;
  *  2. histórico: o mesmo estabelecimento já confirmado antes (aprendizado automático, sem precisar corrigir);
  *  3. regras base (redes e termos conhecidos);
  *  4. estabelecimento parecido já confirmado (palavras em comum);
  *  5. sem correspondência: confiança 0, vai para revisão com sugestões.
  */
-export function classificar(db: Db, usuarioId: string, descricao: string, tipo: Tipo): Classificacao {
+export function classificar(db: Db, usuarioId: string, descricao: string, tipo: Tipo, ctx?: ContextoClassificacao): Classificacao {
   const desc = normalizar(descricao);
   const chave = chaveEstabelecimento(descricao);
 
@@ -95,6 +129,9 @@ export function classificar(db: Db, usuarioId: string, descricao: string, tipo: 
   for (const r of regras) {
     if ((chave && r.padrao_norm === chave) || contemTermo(desc, r.padrao_norm)) return { categoria: r.categoria, natureza: r.natureza, confianca: CONF_USUARIO, fonte: "usuario" };
   }
+
+  const rep = transacaoRepetida(db, usuarioId, desc, ctx);
+  if (rep) return { categoria: rep.categoria, natureza: rep.natureza, confianca: CONF_REPETIDA, fonte: "repetida" };
 
   let hist: Hist[] = [];
   if (chave) {
@@ -123,20 +160,20 @@ export function classificar(db: Db, usuarioId: string, descricao: string, tipo: 
 export interface Sugestao {
   categoria: string;
   /** Por que esta categoria é sugerida (exibido ao usuário). */
-  motivo: "regra" | "historico" | "parecido" | "mais_usada";
+  motivo: "regra" | "repetida" | "historico" | "parecido" | "mais_usada";
 }
 
 /**
  * Até `limite` categorias candidatas para o usuário escolher com um toque, da mais provável para a menos provável:
  * o palpite do classificador, as categorias já usadas para o mesmo estabelecimento (ou parecido) e as mais usadas nos últimos lançamentos.
  */
-export function sugerirCategorias(db: Db, usuarioId: string, descricao: string, tipo: Tipo, limite = 3): Sugestao[] {
+export function sugerirCategorias(db: Db, usuarioId: string, descricao: string, tipo: Tipo, limite = 3, ctx?: ContextoClassificacao): Sugestao[] {
   const out: Sugestao[] = [];
   const add = (categoria: string, motivo: Sugestao["motivo"]) => {
     if (categoria && categoria !== "nao_classificado" && !out.some((s) => s.categoria === categoria)) out.push({ categoria, motivo });
   };
-  const palpite = classificar(db, usuarioId, descricao, tipo);
-  if (palpite.fonte !== "nenhuma") add(palpite.categoria, palpite.fonte === "historico" ? "historico" : palpite.fonte === "similar" ? "parecido" : "regra");
+  const palpite = classificar(db, usuarioId, descricao, tipo, ctx);
+  if (palpite.fonte !== "nenhuma") add(palpite.categoria, palpite.fonte === "repetida" ? "repetida" : palpite.fonte === "historico" ? "historico" : palpite.fonte === "similar" ? "parecido" : "regra");
 
   const chave = chaveEstabelecimento(descricao);
   const hist = historicoConfirmado(db, usuarioId, tipo);
@@ -170,6 +207,24 @@ export function aprenderRegra(db: Db, usuarioId: string, estabelecimentoNorm: st
 }
 
 export function naturezaPara(categoria: string, atual: Natureza): Natureza {
-  if (atual === "parcelado") return atual;
+  if (atual === "parcelado" || atual === "estorno") return atual;
   return naturezaPadraoDaCategoria(categoria) ?? atual;
+}
+
+/**
+ * Mantém o tipo coerente com a natureza para que transferências e aportes nunca sejam somados como despesa:
+ * natureza de transferência vira tipo transferência; aplicação (saída para investimento) vira investimento e
+ * resgate (entrada vinda de investimento) vira transferência, pois não é renda.
+ */
+export function tipoCoerente(tipo: Tipo, natureza: Natureza): Tipo {
+  if (natureza === "transferencia") return "transferencia";
+  if (natureza === "investimento") return tipo === "despesa" ? "investimento" : tipo === "receita" ? "transferencia" : tipo;
+  return tipo;
+}
+
+/** Ao reclassificar de transferência ou investimento para uma categoria comum, volta a ser entrada (categorias "receita_*") ou saída. */
+export function tipoAposReclassificar(tipoAtual: Tipo, categoria: string, natureza: Natureza): Tipo {
+  if (natureza === "transferencia" || natureza === "investimento") return tipoCoerente(tipoAtual === "transferencia" ? "despesa" : tipoAtual, natureza);
+  if (tipoAtual === "transferencia" || tipoAtual === "investimento") return categoria.startsWith("receita") ? "receita" : "despesa";
+  return tipoAtual;
 }

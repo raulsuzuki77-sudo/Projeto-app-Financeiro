@@ -175,8 +175,9 @@ export function capacidadePoupanca(db: Db, usuarioId: string, referencia = new D
   const meses = mesesFechados(referencia, nMeses);
   const por_mes = meses.map((mes) => {
     const q = (tipo: string) => (db.prepare("SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE usuario_id = ? AND tipo = ? AND status = 'confirmado' AND substr(data_local,1,7) = ?").get(usuarioId, tipo, mes) as { t: number }).t;
-    const receitas = q("receita");
-    const despesas = q("despesa");
+    const estornos = (db.prepare("SELECT COALESCE(SUM(valor_centavos),0) t FROM lancamento WHERE usuario_id = ? AND tipo = 'receita' AND natureza = 'estorno' AND status = 'confirmado' AND substr(data_local,1,7) = ?").get(usuarioId, mes) as { t: number }).t;
+    const receitas = q("receita") - estornos;
+    const despesas = Math.max(0, q("despesa") - estornos);
     return { mes, receitas_centavos: receitas, despesas_centavos: despesas, sobra_centavos: receitas - despesas };
   });
   return { por_mes, sobra_media_mensal_centavos: Math.round(por_mes.reduce((a, x) => a + x.sobra_centavos, 0) / nMeses), observacao: "Sobra = receitas - despesas confirmadas; investimentos e transferencias nao entram como despesa." };

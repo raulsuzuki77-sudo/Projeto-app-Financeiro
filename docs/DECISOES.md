@@ -141,3 +141,28 @@ Pedidos do usuario atendidos nesta versao (itens a a l do pedido):
 
 Verificado: tipos, 61 testes do nucleo, 13 do servidor e 12 do app; compilacao do pacote iOS; `expo prebuild` gera os tipos de documento e o manifesto de scenes. NAO verificado: tudo o que depende do aparelho (Swift com senha de PDF, share sheet, telas nativas, desempenho).
 
+## 13. Extratos CSV do Nubank e aprendizado por transação repetida (14/10/2026)
+
+Origem: o usuário enviou extratos reais da conta (jul a set/2026) e faturas do cartão (jun a ago/2026) para treinar a classificação. Os arquivos NÃO entram no repositório: os testes usam dados sintéticos no mesmo formato (`core/test/nubank.test.ts`). Nomes de pessoas físicas nunca viram regra base; só marcas e empresas.
+
+Formatos reconhecidos (deduzidos dos arquivos de exemplo; o Nubank pode alterá-los, e qualquer outro cabeçalho cai no leitor genérico, com linhas recusadas listadas):
+- Conta: `Data,Valor,Identificador,Descrição`; valor com sinal (negativo = saída); o `Identificador` vira a referência estável de importação (reimportar não duplica; o estorno de um Pix reaproveita o identificador do envio, então o sinal do valor também entra na referência).
+- Cartão: `date,title,amount`; valor positivo = compra; negativo = pagamento ou crédito.
+
+Interpretação das descrições (`core/src/importers/nubank.ts`): "Transferência enviada/recebida pelo Pix - NOME - documento - banco, agência, conta" vira "Pix enviado: NOME" (o texto original fica em `texto_bruto`); "Pagamento de boleto efetuado - X" vira "Boleto: X"; "Parcela n/m" vira os campos de parcela; "Pagamento recebido" (cartão) e "Pagamento de fatura" (conta) são a mesma transferência e são unidos pela regra de duplicidade (mesmo valor, data próxima, descrição igual).
+
+Decisões de contabilidade:
+- Transferência e aporte nunca somam como despesa: o tipo do lançamento acompanha a natureza da categoria (transferência, aplicação em investimento). Resgate de investimento é transferência (não é renda). Aplicação e resgate de caixinhas (RDB) giram o mesmo dinheiro; o aporte líquido do mês é aplicações menos resgates, e o painel hoje mostra só as aplicações (limitação conhecida).
+- Estorno, "Desconto Antecipação" e "IOF de volta" entram como entrada de natureza `estorno`, classificada pela despesa de origem; o resumo mensal os abate da despesa da categoria e não os conta como renda. Alternativa descartada: cancelar o lançamento original (perde a rastreabilidade) ou permitir valor negativo (exigiria migração do esquema).
+- Boleto da fatura de outro cartão (Nomad) é transferência, para não contar duas vezes as compras que já vêm da fatura do cartão. Se a fatura do cartão não for importada, esse gasto não aparece: avaliar caso a caso.
+- Itens idênticos no mesmo arquivo (duas compras iguais no mesmo dia) permanecem dois lançamentos; a mescla por duplicidade só vale entre fontes diferentes.
+- Pix entre as próprias contas: o usuário informa o nome do titular (Mais opções, Cartões, Titular), que vira uma regra do usuário (guardada só no aparelho). Não há nome embutido no código.
+
+Aprendizado por transação repetida: nova camada do classificador, logo após as regras do usuário. Uma transação com a mesma descrição e o mesmo valor, já validada pelo usuário em outro mês, é proposta com a mesma categoria. Só conta como prova a classificação confirmada, editada ou lançada pelo próprio usuário (confiança 1): classificação automática não serve de prova, para que um erro não se repita sozinho. Se as ocorrências validadas divergem entre si, nada é proposto. Descrição igual com valor diferente cai no histórico por estabelecimento (já existente). Na tela de revisão, o motivo aparece como "mesma transação de mês anterior".
+
+Efeito medido nos arquivos do usuário (importação em memória, nenhuma revisão manual ainda): 249 lançamentos, 161 classificados pelas regras base (65%) e 88 pendentes em 43 descrições distintas; 76 dos 88 pendentes são Pix de ou para pessoas físicas e empresas pequenas, que dependem de decisão do usuário (uma classificação resolve todos os itens do mesmo favorecido). A camada de transação repetida só passa a agir depois dessa primeira validação, nos meses seguintes.
+
+Tela de revisão: pendentes agrupados por estabelecimento (maiores grupos primeiro; "+N parecidos"), porque classificar um resolve todos.
+
+Não verificado: nenhum formato além dos arquivos enviados; extratos de outros meses ou bancos.
+

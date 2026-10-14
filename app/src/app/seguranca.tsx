@@ -4,6 +4,7 @@ import { useFocusEffect } from "expo-router";
 import { Aviso, Botao, Campo, Cartao, Texto } from "../components/ui";
 import { useTema } from "../components/tema";
 import { exportarBackup, restaurarBackup } from "../lib/backup";
+import { apagarDadosDoNavegador, dadosNoNavegador } from "../data/banco";
 import { bloqueioAtivo, definirBloqueio } from "../lib/seguranca";
 
 export default function Seguranca() {
@@ -60,15 +61,21 @@ export default function Seguranca() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         {msg ? <Aviso tipo={msg.tipo}>{msg.texto}</Aviso> : null}
+        {Platform.OS === "web" && dadosNoNavegador() ? (
+          <Cartao titulo="Dados neste navegador">
+            <Texto suave pequeno>Versão para computador: os dados ficam gravados apenas neste navegador, neste endereço, e não são enviados a nenhum servidor. Limpar os dados do site no navegador também os apaga: exporte um backup antes. Um backup exportado aqui pode ser restaurado no aplicativo do iPhone, e vice-versa.</Texto>
+            <Botao rotulo="Apagar todos os dados deste navegador" perigo pequeno onPress={() => { if (window.confirm("Apagar TODOS os dados guardados neste navegador? Esta ação não pode ser desfeita.")) void apagarDadosDoNavegador(); }} />
+          </Cartao>
+        ) : null}
         <Cartao titulo="Segurança">
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          {Platform.OS !== "web" ? <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Texto forte>Bloquear com Face ID</Texto>
               <Texto suave pequeno>Pede Face ID, Touch ID ou o código do aparelho ao abrir e ao voltar após 30 segundos.</Texto>
             </View>
             <Switch accessibilityLabel="Bloquear com Face ID" value={bloqueio} onValueChange={alternar} />
-          </View>
-          <Texto suave pequeno>Seus dados ficam apenas neste iPhone, no banco do aplicativo. Nada é enviado a servidores.</Texto>
+          </View> : null}
+          <Texto suave pequeno>Seus dados ficam apenas neste aparelho, no banco do aplicativo. Nada é enviado a servidores.</Texto>
         </Cartao>
         <Cartao titulo="Backup cifrado">
           <Texto suave pequeno>Como os dados existem só neste aparelho, faça backups com frequência e guarde o arquivo no iCloud Drive ou em outro lugar seguro. O arquivo é cifrado (AES-256) com a senha abaixo; se perder a senha, não há como recuperar.</Texto>

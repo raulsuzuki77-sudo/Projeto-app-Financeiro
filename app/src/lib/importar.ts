@@ -1,7 +1,7 @@
 import * as Crypto from "expo-crypto";
-import { File } from "expo-file-system";
-import { formatarBRL, importarComprovante, importarFatura, importarTexto, type FormatoTexto, type RelatorioImportacao } from "../../../core/src/index";
+import { formatarBRL, importarComprovante, importarFatura, importarTexto, reaplicarRegrasAosPendentes, type FormatoTexto, type RelatorioImportacao } from "../../../core/src/index";
 import { obterBanco } from "../data/banco";
+import { lerBytes, lerTexto } from "./arquivos";
 import { USUARIO } from "./api";
 import { reconhecerTexto } from "./ocr";
 
@@ -11,7 +11,7 @@ const extensao = (nome: string) => (nome.split(".").pop() ?? "").toLowerCase();
 const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
 
 async function identificadorDoArquivo(uri: string): Promise<string> {
-  const bytes = await new File(uri).arrayBuffer();
+  const bytes = await lerBytes(uri);
   return hex(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)).slice(0, 32);
 }
 
@@ -32,9 +32,13 @@ export async function importarArquivo(arq: { uri: string; nome: string }, tipo: 
   if (tipo === "extrato" || ext === "ofx" || ext === "csv" || ext === "txt") {
     const formato: FormatoTexto | null = ext === "ofx" ? "ofx" : ext === "csv" ? "csv" : ext === "txt" ? "fatura-texto" : null;
     if (!formato) throw new Error("Para extrato, escolha um arquivo OFX ou CSV.");
-    const r = importarTexto(db, formato, await new File(arq.uri).text(), ctx);
+    const r = importarTexto(db, formato, await lerTexto(arq.uri), ctx);
     if (!r.ok) throw new Error(r.erro);
+    // Importar fora de ordem (setembro antes de agosto) nao pode custar classificacao: reaplica o que ja foi aprendido.
+    reaplicarRegrasAosPendentes(db, USUARIO);
     const extras: string[] = [];
+    if (r.formato_csv === "nubank_conta") extras.push("Formato reconhecido: extrato da conta Nubank.");
+    if (r.formato_csv === "nubank_cartao") extras.push("Formato reconhecido: fatura do cartão Nubank.");
     if (r.rejeitadas?.length) extras.push(`${r.rejeitadas.length} linha(s) recusada(s): ${r.rejeitadas.slice(0, 3).map((x) => `linha ${x.linha} (${x.motivo})`).join("; ")}.`);
     if (r.conciliacao) extras.push(r.conciliacao.fecha ? `Soma confere com o total da fatura (${formatarBRL(r.conciliacao.total_declarado_centavos)}).` : `ATENÇÃO: soma dos itens (${formatarBRL(r.conciliacao.soma_itens_centavos)}) difere do total (${formatarBRL(r.conciliacao.total_declarado_centavos)}); tudo foi para revisão.`);
     return [resumo(r.relatorio), ...extras].join(" ");

@@ -73,11 +73,16 @@ Pelo que sei, o app instalado com Apple ID gratuito deixa de abrir após 7 dias.
 - Mudou o Bundle ID: rode de novo o script da Parte 2 com o novo identificador. **Atenção**: um Bundle ID diferente é outro aplicativo para o iOS, com banco de dados separado; exporte o backup antes e restaure no novo.
 - Baixou uma versão nova do código (atualização): exporte antes um backup cifrado (Mais opções > Backup e segurança). No Terminal: `cd Projeto-app-Financeiro`, `git checkout -- .` (descarta alterações locais, como o Bundle ID gravado), `git pull origin claude/financial-control-system-plan-fl4o1k`, `cd app`, e rode de novo `./scripts/preparar-mac.sh br.com.SEUNOME.controlefinanceiro` (mesmo Bundle ID de antes, para manter os dados). O script reinstala as dependências, regenera o projeto e tenta configurar o Release sozinho. **Atenção**: regenerar o projeto apaga as configurações feitas no Xcode: refaça o passo 3 da Parte 3 (escolher o Team) e confira o passo 6 (Release). Depois, Cmd+R. O Apple ID e o iPhone já cadastrados continuam valendo.
 
-## Parte 6-B. Ver o aplicativo sem o iPhone (iterar o layout)
+## Parte 6-B. Testar no computador antes de passar ao iPhone (versão web)
 
-- Prévia no navegador (dados fictícios de demonstração): na pasta `app`, rode `npm run web` e abra o endereço indicado. Serve para avaliar layout e fluxo; não exercita OCR, Face ID, Keychain nem o menu Compartilhar.
-- Simulador do iPhone (já vem com o Xcode): `npx expo run:ios` na pasta `app` abre o app no simulador, com o código nativo real, exceto Face ID e câmera.
-- Receber PDF pelo menu Compartilhar: depois de instalar a versão nova, abra um PDF no app Arquivos, toque em Compartilhar e procure "Controle Financeiro" entre os aplicativos. Esse recurso não foi verificado em aparelho; se não aparecer, avise.
+Há uma versão do mesmo aplicativo que roda no navegador do computador, com banco próprio e vazio (nada é enviado a servidores). Serve para importar extratos, treinar a classificação e avaliar telas sem Xcode nem iPhone.
+
+- Gerar o pacote (precisa do projeto clonado e do Node.js): na pasta `app`, `npm install` e depois `npm run empacotar-pc`. Sai um zip em `app/dist-pc/controle-financeiro-pc.zip`.
+- Abrir: descompacte e dê duplo clique em "Abrir Controle Financeiro.command" (macOS; se o sistema bloquear, clique com o botão direito e escolha Abrir) ou ".bat" (Windows). O navegador abre em `http://localhost:8123`. Mantenha a janela do terminal aberta.
+- Dados: ficam só neste navegador e neste endereço. Limpar os dados do site apaga tudo; exporte um backup cifrado antes (Mais opções, Backup e segurança). O backup feito aqui restaura no iPhone e vice-versa.
+- Modo de desenvolvimento (para quem altera o código): `npm run web` na pasta `app`.
+- Simulador do iPhone (já vem com o Xcode): `npx expo run:ios` na pasta `app`, com o código nativo real, exceto Face ID e câmera.
+- Receber PDF pelo menu Compartilhar (só no iPhone): depois de instalar a versão nova, abra um PDF no app Arquivos, toque em Compartilhar e procure "Controle Financeiro". Esse recurso não foi verificado em aparelho; se não aparecer, avise.
 
 ## Parte 7. Erros comuns e como pedir ajuda
 

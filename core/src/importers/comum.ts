@@ -1,5 +1,5 @@
 import { sha256Hex } from "../util/sha256";
-import type { NovoLancamento } from "../domain/types";
+import type { FormaPagamento, NovoLancamento, Tipo } from "../domain/types";
 import type { Db } from "../db/tipos";
 import { registrarLancamento } from "../ingest/lancamentos";
 
@@ -15,6 +15,13 @@ export interface ItemImportado {
   confianca_ocr?: number;
   /** Motivo pelo qual o item exige revisão humana (ex.: data fora de ordem). */
   alerta?: string;
+  forma_pagamento?: FormaPagamento | null;
+  /** Crédito que abate despesa (estorno, desconto, devolução). Ver `NovoLancamento.estorno`. */
+  estorno?: boolean;
+  /** Tipo definido pela própria leitura, quando o sinal do valor não basta. */
+  tipo?: Tipo;
+  /** Texto original da linha, guardado para rastreabilidade (a descrição pode ter sido simplificada). */
+  texto_bruto?: string;
 }
 
 export interface ContextoImportacao {
@@ -49,12 +56,14 @@ export interface RelatorioImportacao {
 export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImportacao): RelatorioImportacao {
   const rel: RelatorioImportacao = { lidos: itens.length, criados: 0, mesclados: 0, ja_processados: 0, pendentes: 0, alertas: [] };
   const contador = new Map<string, number>();
+  // Itens do mesmo arquivo nao se mesclam entre si (duas compras iguais no mesmo dia sao duas compras).
+  const doLote = new Set<number>();
   for (const it of itens) {
     const ehSaida = ctx.positivoEhDespesa ? it.valor_centavos > 0 : it.valor_centavos < 0;
     const abs = Math.abs(it.valor_centavos);
     if (abs === 0) continue;
     const ehPgtoFatura = RE_PGTO_FATURA.test(it.descricao);
-    const tipo = ehPgtoFatura ? "transferencia" : ehSaida ? "despesa" : "receita";
+    const tipo: Tipo = it.tipo ?? (ehPgtoFatura ? "transferencia" : it.estorno ? "receita" : ehSaida ? "despesa" : "receita");
     // Referencia estavel: FITID quando existe; senao lote + conteudo + ordinal (linhas identicas no mesmo arquivo continuam distintas).
     const chave = it.referencia ?? `${ctx.lote}:${it.data_local}:${it.descricao}:${it.valor_centavos}`;
     const ordinal = (contador.get(chave) ?? 0) + 1;
@@ -66,7 +75,7 @@ export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImpor
       tipo,
       valor_centavos: abs,
       descricao: it.descricao,
-      forma_pagamento: ctx.cartao_id ? "credito" : null,
+      forma_pagamento: it.forma_pagamento !== undefined ? it.forma_pagamento : ctx.cartao_id ? "credito" : null,
       cartao_id: ctx.cartao_id ?? null,
       conta_id: ctx.conta_id ?? null,
       parcela_atual: it.parcela_atual ?? null,
@@ -76,9 +85,11 @@ export function importarItens(db: Db, itens: ItemImportado[], ctx: ContextoImpor
       precisao_horario: "desconhecido", // extratos e faturas trazem apenas a data
       origem: ctx.origem,
       referencia,
-      texto_bruto: it.descricao,
+      texto_bruto: it.texto_bruto ?? it.descricao,
       alerta_revisao: alertaItem,
-    });
+      estorno: it.estorno,
+    }, { ignorarIds: doLote });
+    if (r.resultado === "criado") doLote.add(r.lancamento.id);
     if (alertaItem && r.resultado === "criado") rel.alertas.push({ descricao: it.descricao, data_local: it.data_local, motivo: alertaItem });
     if (r.resultado === "criado") {
       rel.criados++;
