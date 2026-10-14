@@ -1,6 +1,6 @@
 import type { Db } from "./tipos";
 
-export const VERSAO_SCHEMA = 3;
+export const VERSAO_SCHEMA = 4;
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS conta (
@@ -148,6 +148,72 @@ CREATE TABLE IF NOT EXISTS orcamento (
   item TEXT NOT NULL,
   valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0),
   PRIMARY KEY (usuario_id, mes, item)
+);
+
+-- Compromissos que o usuario disse que NAO sao recorrentes (a deteccao automatica deixa de sugeri-los).
+CREATE TABLE IF NOT EXISTS recorrente_ignorada (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  tipo TEXT NOT NULL,
+  chave TEXT NOT NULL,
+  PRIMARY KEY (usuario_id, tipo, chave)
+);
+
+-- Liberdade financeira: extratos de investimentos importados (um por arquivo), posicoes por mes, movimentos e cambio.
+CREATE TABLE IF NOT EXISTS extrato_investimento (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  instituicao TEXT NOT NULL,
+  conta TEXT NOT NULL DEFAULT '',
+  moeda TEXT NOT NULL DEFAULT 'BRL',
+  periodo_inicio TEXT NOT NULL,
+  periodo_fim TEXT NOT NULL,
+  hash_arquivo TEXT NOT NULL,
+  total_declarado_centavos INTEGER,
+  importado_em TEXT NOT NULL,
+  UNIQUE (usuario_id, hash_arquivo)
+);
+
+-- valor_centavos na moeda original (pode ser negativo: valores em transito). mes = AAAA-MM do fim do periodo.
+CREATE TABLE IF NOT EXISTS posicao_investimento (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  extrato_id INTEGER REFERENCES extrato_investimento(id),
+  mes TEXT NOT NULL,
+  instituicao TEXT NOT NULL,
+  conta TEXT NOT NULL DEFAULT '',
+  classe_ativo TEXT NOT NULL,
+  ativo TEXT NOT NULL,
+  codigo TEXT,
+  quantidade REAL,
+  moeda TEXT NOT NULL DEFAULT 'BRL',
+  valor_centavos INTEGER NOT NULL,
+  origem TEXT NOT NULL DEFAULT 'manual',
+  criada_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pos_mes ON posicao_investimento(usuario_id, mes);
+
+CREATE TABLE IF NOT EXISTS movimento_investimento (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  extrato_id INTEGER REFERENCES extrato_investimento(id),
+  data_local TEXT NOT NULL,
+  instituicao TEXT NOT NULL,
+  conta TEXT NOT NULL DEFAULT '',
+  tipo TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  codigo TEXT,
+  moeda TEXT NOT NULL DEFAULT 'BRL',
+  valor_centavos INTEGER NOT NULL,
+  em_transito INTEGER NOT NULL DEFAULT 0
+);
+
+-- Taxa para converter moeda estrangeira em reais, informada pelo usuario por mes (ex.: dolar do fim do mes), taxa x 10000.
+CREATE TABLE IF NOT EXISTS cambio (
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  mes TEXT NOT NULL,
+  moeda TEXT NOT NULL,
+  taxa_x10000 INTEGER NOT NULL,
+  PRIMARY KEY (usuario_id, mes, moeda)
 );
 
 CREATE TABLE IF NOT EXISTS auditoria (
