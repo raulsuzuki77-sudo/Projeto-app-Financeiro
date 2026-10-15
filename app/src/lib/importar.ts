@@ -1,9 +1,9 @@
 import * as Crypto from "expo-crypto";
-import { concluirDocumento, descartarDocumento, documentoPorHash, formatarBRL, importarComprovante, importarFatura, importarTexto, lerCsv, reaplicarRegrasAosPendentes, registrarDocumento, versaoAnterior, type FormatoTexto, type RelatorioImportacao, type TipoDocumento } from "../../../core/src/index";
+import { conciliarCompromissos, concluirDocumento, descartarDocumento, documentoPorHash, formatarBRL, importarComprovante, importarFatura, importarTexto, lerCsv, reaplicarRegrasAosPendentes, registrarDocumento, versaoAnterior, type FormatoTexto, type RelatorioImportacao, type TipoDocumento } from "../../../core/src/index";
 import { obterBanco } from "../data/banco";
 import { lerBytes, lerTexto } from "./arquivos";
 import { USUARIO } from "./api";
-import { dataBR } from "./format";
+import { dataBR, mudarMes } from "./format";
 import { reconhecerTexto } from "./ocr";
 
 export type TipoImportacao = "extrato" | "fatura" | "comprovante";
@@ -47,6 +47,8 @@ export async function importarArquivo(arq: { uri: string; nome: string }, tipo: 
   /** Fecha o documento e, se for nova versao de outro, avisa que os itens repetidos nao foram contados de novo. */
   const concluir = (doc: number, rel: RelatorioImportacao): string => {
     concluirDocumento(db, doc, { lidos: rel.lidos, criados: rel.criados, mesclados: rel.mesclados, ja_processados: rel.ja_processados, periodo: rel.periodo });
+    // O extrato ou a fatura importados comprovam (ou contradizem) os pagamentos marcados no controle de pagamentos.
+    if (rel.periodo) for (let m = rel.periodo.de.slice(0, 7), n = 0; m <= rel.periodo.ate.slice(0, 7) && n < 4; n++) { conciliarCompromissos(db, USUARIO, m); m = mudarMes(m, 1); }
     const v = versaoAnterior(db, doc);
     return v ? ` Este arquivo parece uma nova versão de «${v.nome}» (importado em ${dataBR(v.importado_em.slice(0, 10))}): ${v.compartilhados} item(ns) já existiam e não foram contados de novo.` : "";
   };

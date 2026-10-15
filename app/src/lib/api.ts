@@ -1,5 +1,5 @@
 import {
-  apagarDados, fechamentoDoMes, ITEM_SOBRA_ESPERADA, classificarVarios, confirmarVarios, definirEventoVarios, definirLimiteClasse, diferencaDeMeses, documentoPorHash, evolucaoDeClasses, excluirDocumento, excluirMes, excluirVarios, listarDocumentos, listarParaRevisao, moverDocumento, moverMes,
+  apagarDados, conciliarCompromissos, criarCompromisso, gerarCompromissosDoMes, lancarValorReal, listarCompromissos, marcarPago, pagamentosProximos, removerCompromisso, resumoDePagamentos, fechamentoDoMes, ITEM_SOBRA_ESPERADA, classificarVarios, confirmarVarios, definirEventoVarios, definirLimiteClasse, diferencaDeMeses, documentoPorHash, evolucaoDeClasses, excluirDocumento, excluirMes, excluirVarios, listarDocumentos, listarParaRevisao, moverDocumento, moverMes,
   previaDoMes, restaurarVarios, resumoDeManuaisDoMes, arquivoDaPastaResolvido, listarArquivosDaPasta, registrarArquivoDaPasta, reiniciarRegistroDaPasta, type StatusArquivoPasta,
   type EscopoApagar, type EscopoDoMes, type RefDocumento,
   candidatosParaEvento, ignorarRecorrente, listarRecorrentesIgnoradas, parcelasFuturas, restaurarRecorrenteIgnorada, sugestoesDoPeriodo, vincularLancamentos, visoesDeDespesa,
@@ -36,6 +36,7 @@ export type DadosLiberdade = {
 };
 export type { RefDocumento, EscopoDoMes };
 export type DocumentoListado = Awaited<ReturnType<typeof api.documentos>>[number];
+export type CompromissoApp = Awaited<ReturnType<typeof api.pagamentos>>["itens"][number];
 export type CenariosDaMeta = ReturnType<typeof cenariosDaMeta>;
 export type Reserva = ReturnType<typeof reservaDeEmergencia>;
 export type MapaCalor = ReturnType<typeof mapaCalor>;
@@ -157,6 +158,18 @@ export const api = {
   sugerirOrcamento: async (mes: string) => sugerirOrcamentoPelaMedia(obterBanco(), USUARIO, mes),
   definirClasse: async (categoria: string, classe: ClasseId | null) => definirClasse(obterBanco(), USUARIO, categoria, classe),
   orcamentoVsMetas: async (mes: string) => orcamentoVsMetas(obterBanco(), USUARIO, mes),
+  /** Controle de pagamentos: compromissos do mês (das recorrências e criados à mão), valor real do boleto, pago à mão e conferência com o extrato. */
+  pagamentos: async (mes: string) => {
+    const db = obterBanco();
+    gerarCompromissosDoMes(db, USUARIO, mes);
+    conciliarCompromissos(db, USUARIO, mes);
+    return { itens: listarCompromissos(db, USUARIO, mes), resumo: resumoDePagamentos(db, USUARIO, mes, hoje()) };
+  },
+  criarCompromisso: async (c: { mes: string; descricao: string; valor_planejado_centavos: number; vencimento?: string | null }) => criarCompromisso(obterBanco(), USUARIO, c),
+  lancarValorReal: async (id: number, p: { valor_real_centavos: number; vencimento?: string | null; descricao?: string }) => lancarValorReal(obterBanco(), USUARIO, id, p),
+  marcarPago: async (id: number, pago: boolean, data = hoje()) => marcarPago(obterBanco(), USUARIO, id, pago, data),
+  removerCompromisso: async (id: number) => removerCompromisso(obterBanco(), USUARIO, id),
+  pagamentosProximos: async () => pagamentosProximos(obterBanco(), USUARIO, hoje(), 7),
   /** Conferência de fim de mês: conta de fechamento, sobra esperada e o que impede o mês de fechar. */
   fechamento: async (mes: string) => fechamentoDoMes(obterBanco(), USUARIO, mes, hoje()),
   /** Quanto o usuário costuma deixar na conta ao fim do mês (R$ 200 a 300, por exemplo). */

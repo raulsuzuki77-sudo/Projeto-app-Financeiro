@@ -11,6 +11,7 @@ const PainelCtx = createContext<Ctx>({ abrir: () => undefined });
 export const usePainelLateral = () => useContext(PainelCtx);
 
 const ITENS: { rota: string; rotulo: string; descricao: string; icone: NomeIcone }[] = [
+  { rota: "/pagamentos", rotulo: "A pagar do mês", descricao: "Boletos e contas: planejado, lançado e pago", icone: "calendario" },
   { rota: "/importar", rotulo: "Importar ou ajustar documentos", descricao: "Importar arquivos; excluir ou mover o que foi importado", icone: "importar" },
   { rota: "/eventos", rotulo: "Viagens e eventos", descricao: "Férias, viagens a serviço, gastos do período", icone: "calendario" },
   { rota: "/recorrentes", rotulo: "Gastos recorrentes", descricao: "Aluguel, assinaturas, salário", icone: "recorrente" },

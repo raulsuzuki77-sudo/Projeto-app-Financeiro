@@ -38,8 +38,8 @@ export default function Inicio() {
 
   const { dados, erro, carregando, recarregar } = useDados(async () => {
     await api.gerarRecorrencias();
-    const [resumo, cartoes, orcamento, viagens, recorrentes, visoes, pendentes] = await Promise.all([api.resumo(mes), api.cartoes(), api.orcamento(mes), api.viagensSemEvento(), api.recorrentesDetectadas(), api.visoesDespesa(mes), api.contarPendentes()]);
-    return { resumo, cartoes, orcamento, viagens, recorrentes, visoes, pendentes };
+    const [resumo, cartoes, orcamento, viagens, recorrentes, visoes, pendentes, pagamentos] = await Promise.all([api.resumo(mes), api.cartoes(), api.orcamento(mes), api.viagensSemEvento(), api.recorrentesDetectadas(), api.visoesDespesa(mes), api.contarPendentes(), api.pagamentosProximos()]);
+    return { resumo, cartoes, orcamento, viagens, recorrentes, visoes, pendentes, pagamentos };
   }, [mes]);
   useBotaoAtualizar(recarregar);
 
@@ -82,6 +82,8 @@ export default function Inicio() {
     const lista: { texto: string; rotulo: string; rota: string }[] = [];
     const estouros = dados?.orcamento.alertas.filter((a) => a.tipo === "estourou").length ?? 0;
     if (estouros > 0) lista.push({ texto: `${estouros} item(ns) do orçamento acima do planejado em ${nomeMes(mes)}.`, rotulo: "Ver orçamento", rota: "/orcamento" });
+    const pg = dados?.pagamentos;
+    if (pg && (pg.atrasados > 0 || pg.proximos > 0)) lista.push({ texto: `${pg.atrasados > 0 ? `${pg.atrasados} pagamento(s) em atraso` : ""}${pg.atrasados > 0 && pg.proximos > 0 ? " e " : ""}${pg.proximos > 0 ? `${pg.proximos} vencendo nos próximos 7 dias` : ""}.`, rotulo: "Ver a pagar", rota: "/pagamentos" });
     const viagens = dados?.viagens.length ?? 0;
     if (viagens > 0) lista.push({ texto: `${viagens} gasto(s) de viagem sem período definido. Informe quando a viagem ocorreu.`, rotulo: "Informar período", rota: "/eventos" });
     const novas = (dados?.recorrentes ?? []).filter((r) => !r.cadastrada && !r.encerrada).length;

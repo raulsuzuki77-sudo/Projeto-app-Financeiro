@@ -58,6 +58,7 @@ export default function LayoutRaiz() {
             <Stack.Screen name="recorrentes" options={{ title: "Gastos recorrentes" }} />
             <Stack.Screen name="metas" options={{ title: "Metas e cenários" }} />
             <Stack.Screen name="cartoes" options={{ title: "Cartões" }} />
+            <Stack.Screen name="pagamentos" options={{ title: "A pagar do mês" }} />
             <Stack.Screen name="pasta" options={{ title: "Pasta de documentos" }} />
             <Stack.Screen name="seguranca" options={{ title: "Backup e segurança" }} />
           </Stack>

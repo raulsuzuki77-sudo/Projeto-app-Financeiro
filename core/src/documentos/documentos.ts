@@ -175,6 +175,8 @@ export function resumoDeManuaisDoMes(db: Db, usuarioId: string, mes: string): { 
 function removerLancamentos(db: Db, ids: number[]): number {
   let n = 0;
   for (const id of ids) {
+    // o pagamento comprovado por este lancamento deixa de estar comprovado
+    db.prepare("UPDATE compromisso SET lancamento_id = NULL, divergencia_centavos = NULL, estado = CASE WHEN pago_pelo_usuario = 1 THEN estado WHEN valor_real_centavos IS NOT NULL THEN 'lancado' ELSE 'planejado' END, pago_em = CASE WHEN pago_pelo_usuario = 1 THEN pago_em ELSE NULL END WHERE lancamento_id = ?").run(id);
     db.prepare("UPDATE lancamento SET possivel_duplicado_de = NULL WHERE possivel_duplicado_de = ?").run(id);
     db.prepare("DELETE FROM lancamento_origem WHERE lancamento_id = ?").run(id);
     db.prepare("DELETE FROM auditoria WHERE lancamento_id = ?").run(id);

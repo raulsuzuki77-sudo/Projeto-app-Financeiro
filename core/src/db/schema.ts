@@ -120,6 +120,26 @@ CREATE TABLE IF NOT EXISTS arquivo_pasta (
   PRIMARY KEY (usuario_id, caminho, tamanho, modificado)
 );
 
+-- Controle de pagamentos do mes (planejado -> lancado -> pago). Nao sao lancamentos: nao entram nos totais.
+CREATE TABLE IF NOT EXISTS compromisso (
+  id INTEGER PRIMARY KEY,
+  usuario_id TEXT NOT NULL DEFAULT 'local',
+  mes TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  categoria TEXT NOT NULL DEFAULT 'nao_classificado',
+  valor_planejado_centavos INTEGER NOT NULL DEFAULT 0,
+  valor_real_centavos INTEGER,
+  vencimento TEXT,
+  estado TEXT NOT NULL DEFAULT 'planejado' CHECK (estado IN ('planejado','lancado','pago')),
+  pago_em TEXT,
+  pago_pelo_usuario INTEGER NOT NULL DEFAULT 0,
+  lancamento_id INTEGER,
+  divergencia_centavos INTEGER,
+  recorrencia_id INTEGER,
+  criado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_compromisso_mes ON compromisso(usuario_id, mes);
+
 -- Rastreabilidade: toda origem que gerou ou confirmou o lancamento. UNIQUE = idempotencia.
 CREATE TABLE IF NOT EXISTS lancamento_origem (
   id INTEGER PRIMARY KEY,
