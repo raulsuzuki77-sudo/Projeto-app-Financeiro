@@ -42,3 +42,4 @@ export * from "./investimentos/carteira";
 export * from "./investimentos/diagnostico";
 export * from "./investimentos/dicionario";
 export * from "./investimentos/setorial";
+export * from "./dashboard/fechamento";

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { abrirBancoTeste } from "./helpers";
 import {
-  alterarLancamento, classificar, definirLimiteClasse, editarLancamento, evolucaoDeClasses, importarTexto, listarLancamentos, listarParaRevisao, painelOrcamento, prepararBanco, registrarLancamento, resumoMensal, visoesDeDespesa,
+  alterarLancamento, classificar, definirLimiteClasse, editarLancamento, evolucaoDeClasses, importarTexto, fechamentoDoMes, ITEM_SOBRA_ESPERADA, listarLancamentos, listarParaRevisao, painelOrcamento, prepararBanco, registrarLancamento, resumoMensal, visoesDeDespesa,
 } from "../src/index";
 import type { Db } from "../src/db/tipos";
 
@@ -156,4 +156,29 @@ test("fechamento do mes: resgates entram no caixa, Pix recebido de si mesmo e in
   assert.equal((listarLancamentos(db, U, { mes: "2026-09", natureza: "fixo" }) as unknown[]).length, 1);
   assert.equal((listarLancamentos(db, U, { mes: "2026-09", categorias: ["alimentacao_restaurante", "moradia"] }) as unknown[]).length, 2);
   assert.equal((listarLancamentos(db, U, { mes: "2026-09", categorias: [] }) as unknown[]).length, 0);
+});
+
+test("fechar o mes: lista o que impede, compara a sobra com a esperada e nao esconde a diferenca", () => {
+  const db = abrirBancoTeste();
+  lanca(db, "2026-08-05", 100000, "Salário", { categoria: "receita_trabalho", tipo: "receita" });
+  const r = importarTexto(db, "csv", "date,title,amount\n2026-08-10,Loja Exemplo,\"10,00\"\n", { usuario_id: U, cartao_id: (db.prepare("INSERT INTO cartao (usuario_id, apelido, apelido_norm) VALUES ('u','nubank','nubank')").run().lastInsertRowid as number) });
+  assert.ok(r.ok);
+  lanca(db, "2026-09-05", 1000000, "Salário", { categoria: "receita_trabalho", tipo: "receita" });
+  lanca(db, "2026-09-10", 900000, "Aluguel", { categoria: "moradia" });
+  lanca(db, "2026-09-11", 5000, "Loja Misteriosa");
+  db.prepare("INSERT INTO lancamento (usuario_id,tipo,valor_centavos,descricao,estabelecimento_norm,categoria,natureza,ocorrido_em,data_local,precisao_horario,status,confianca,hash_dedup,criado_em,atualizado_em) VALUES ('u','transferencia',70000,'Pix recebido: FULANO','pix recebido fulano','transferencia','transferencia','x','2026-09-12','desconhecido','confirmado',1,'h','x','x')").run();
+  const f = fechamentoDoMes(db, U, "2026-09", "2026-10-15");
+  const ids = f.pendencias.map((p) => p.id);
+  assert.ok(ids.includes("sem_categoria") && ids.includes("transferencias_recebidas") && ids.includes("cartao_nubank") && ids.includes("diferenca"));
+  assert.equal(f.sobra_centavos, 1000000 - 900000 - 5000);
+  assert.equal(f.fecha, false);
+  // esperada 300: com a transferencia reclassificada como custo de vida e a loja categorizada, fecha
+  db.prepare("INSERT INTO orcamento (usuario_id, mes, item, valor_centavos) VALUES ('u','*',?,?)").run(ITEM_SOBRA_ESPERADA, 30000);
+  db.prepare("UPDATE lancamento SET tipo='receita', categoria='receita_custo_vida', natureza='eventual' WHERE descricao = 'Pix recebido: FULANO'").run();
+  db.prepare("UPDATE lancamento SET categoria='compras_diversas', status='confirmado' WHERE descricao = 'Loja Misteriosa'").run();
+  db.prepare("INSERT INTO lancamento (usuario_id,tipo,valor_centavos,descricao,estabelecimento_norm,categoria,natureza,ocorrido_em,data_local,precisao_horario,status,confianca,hash_dedup,criado_em,atualizado_em,cartao_id) VALUES ('u','despesa',1000,'Compra cartao','compra cartao','compras_diversas','eventual','x','2026-09-13','desconhecido','confirmado',1,'h2','x','x',1)").run();
+  lanca(db, "2026-09-20", 5000, "Saida avulsa", { categoria: "compras_diversas" });
+  const g = fechamentoDoMes(db, U, "2026-09", "2026-10-15");
+  assert.equal(g.sobra_centavos, 1000000 + 70000 - 900000 - 5000 - 1000 - 5000);
+  assert.equal(g.diferenca_centavos, g.sobra_centavos - 30000);
 });

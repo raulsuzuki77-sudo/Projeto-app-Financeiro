@@ -1,5 +1,5 @@
 import {
-  apagarDados, classificarVarios, confirmarVarios, definirEventoVarios, definirLimiteClasse, diferencaDeMeses, documentoPorHash, evolucaoDeClasses, excluirDocumento, excluirMes, excluirVarios, listarDocumentos, listarParaRevisao, moverDocumento, moverMes,
+  apagarDados, fechamentoDoMes, ITEM_SOBRA_ESPERADA, classificarVarios, confirmarVarios, definirEventoVarios, definirLimiteClasse, diferencaDeMeses, documentoPorHash, evolucaoDeClasses, excluirDocumento, excluirMes, excluirVarios, listarDocumentos, listarParaRevisao, moverDocumento, moverMes,
   previaDoMes, restaurarVarios, resumoDeManuaisDoMes, arquivoDaPastaResolvido, listarArquivosDaPasta, registrarArquivoDaPasta, reiniciarRegistroDaPasta, type StatusArquivoPasta,
   type EscopoApagar, type EscopoDoMes, type RefDocumento,
   candidatosParaEvento, ignorarRecorrente, listarRecorrentesIgnoradas, parcelasFuturas, restaurarRecorrenteIgnorada, sugestoesDoPeriodo, vincularLancamentos, visoesDeDespesa,
@@ -157,6 +157,10 @@ export const api = {
   sugerirOrcamento: async (mes: string) => sugerirOrcamentoPelaMedia(obterBanco(), USUARIO, mes),
   definirClasse: async (categoria: string, classe: ClasseId | null) => definirClasse(obterBanco(), USUARIO, categoria, classe),
   orcamentoVsMetas: async (mes: string) => orcamentoVsMetas(obterBanco(), USUARIO, mes),
+  /** Conferência de fim de mês: conta de fechamento, sobra esperada e o que impede o mês de fechar. */
+  fechamento: async (mes: string) => fechamentoDoMes(obterBanco(), USUARIO, mes, hoje()),
+  /** Quanto o usuário costuma deixar na conta ao fim do mês (R$ 200 a 300, por exemplo). */
+  definirSobraEsperada: async (centavos: number) => definirOrcamento(obterBanco(), USUARIO, "*", ITEM_SOBRA_ESPERADA, centavos),
   /** Limite máximo da classe como fração da receita (0,3 = 30%); null volta ao padrão. */
   definirLimiteClasse: async (classe: ClasseId, fracao: number | null) => definirLimiteClasse(obterBanco(), USUARIO, classe, fracao),
   /** Participação de cada classe na receita, mês a mês (como as colunas da planilha de acompanhamento). */

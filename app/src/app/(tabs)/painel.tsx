@@ -4,6 +4,7 @@ import { DeviceEventEmitter, RefreshControl, ScrollView, Text, View } from "reac
 import { grupoDaCategoria, rotuloCategoria } from "../../../../core/src/index";
 import { Barras } from "../../components/barras";
 import { ExtratoLista, type FiltroDoPainel } from "../../components/extrato-lista";
+import { FecharMes } from "../../components/fechar-mes";
 import { ParticipacaoClasses } from "../../components/participacao-classes";
 import { SeletorMes } from "../../components/seletor-mes";
 import { useTema } from "../../components/tema";
@@ -92,6 +93,7 @@ export default function Painel() {
             {r.pendentes > 0 ? <Aviso tipo="info">{`${r.pendentes} lançamento(s) pendente(s) entram nestes totais; confirme no botão de revisão do Início.`}</Aviso> : null}
             <Texto suave pequeno>Transferências (como o pagamento da fatura) não contam como despesa. Toque numa barra ou numa fatia dos gráficos para ver os lançamentos.</Texto>
           </Cartao>
+          <FecharMes mes={mes} versao={dados?.resumo.saldo_centavos ?? 0} aoVer={ver} />
           {dados?.orcamento && dados.orcamento.mes === mes ? (
             <ParticipacaoClasses
               painel={dados.orcamento}

@@ -26,6 +26,8 @@ export interface FiltroDoPainel {
   categoria?: string;
   categorias?: string[];
   natureza?: string;
+  tipo?: string;
+  busca?: string;
 }
 
 /**
@@ -51,7 +53,7 @@ export function ExtratoLista({ mes, filtroPainel, aoLimparFiltroPainel, topo }: 
   const modoSel = selecionando || sel.size > 0;
 
   const { dados: pacote, erro, carregando, recarregar } = useDados(async () => {
-    const [lancamentos, recorrentes, eventos] = await Promise.all([api.lancamentos({ mes: typeof evento === "number" ? undefined : mes, tipo: filtro === "todos" ? undefined : filtro, busca, ordem, evento: evento ?? undefined, categoria: semCategoria ? "nao_classificado" : filtroPainel?.categoria, categorias: filtroPainel?.categorias, natureza: filtroPainel?.natureza, limite: 800 }), api.recorrentesDetectadas(), api.eventos()]);
+    const [lancamentos, recorrentes, eventos] = await Promise.all([api.lancamentos({ mes: typeof evento === "number" ? undefined : mes, tipo: filtro === "todos" ? filtroPainel?.tipo : filtro, busca: busca || filtroPainel?.busca, ordem, evento: evento ?? undefined, categoria: semCategoria ? "nao_classificado" : filtroPainel?.categoria, categorias: filtroPainel?.categorias, natureza: filtroPainel?.natureza, limite: 800 }), api.recorrentesDetectadas(), api.eventos()]);
     return { lancamentos, recorrentes: new Set(recorrentes.filter((r) => !r.encerrada).map((r) => `${r.tipo}|${r.chave}`)), eventos: new Map(eventos.map((e) => [e.id, e.nome])) };
   }, [mes, filtro, busca, ordem, evento, semCategoria, filtroPainel]);
   const dados = pacote?.lancamentos ?? null;
